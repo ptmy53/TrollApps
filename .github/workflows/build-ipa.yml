@@ -130,6 +130,10 @@ jobs:
           APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
           echo "--- localization keys in built app ---"
           plutil -p "$APP/en.lproj/Localizable.strings" | grep -E 'UPDATES|ALL_APPS' || echo "KEYS NOT FOUND"
+          echo "--- bundled localizations ---"
+          ls -d "$APP"/*.lproj | sed 's|.*/||'
+          echo "--- turkish localization in built app ---"
+          plutil -p "$APP/tr.lproj/Localizable.strings" | grep -E 'UPDATES|ALL_APPS' || echo "TR KEYS NOT FOUND"
           echo "--- UI strings inside binary ---"
           (strings -a "$APP/TrollApps" | grep -x -E 'UPDATES|ALL_APPS|NO_UPDATES' | sort -u) || echo "STRINGS NOT FOUND"
 
@@ -159,6 +163,6 @@ jobs:
           gh release create "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" \
             --repo "${{ github.repository }}" \
             --title "TrollApps 2.3 with Updates section (build ${{ github.run_number }})" \
-            --notes "TrollApps built from upstream source with an Updates section at the top of the Browse list. Install with TrollStore." \
+            --notes "TrollApps built from upstream source with an 'Updates' section at the top of the Browse list. Install with TrollStore." \
             || gh release upload "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" --repo "${{ github.repository }}" --clobber
           gh release view "$TAG" --repo "${{ github.repository }}" --json url -q .url

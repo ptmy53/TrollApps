@@ -1,3 +1,106 @@
+diff --git a/TrollApps/TrollApps.xcodeproj/project.pbxproj b/TrollApps/TrollApps.xcodeproj/project.pbxproj
+index aea59ca..ca96690 100644
+--- a/TrollApps/TrollApps.xcodeproj/project.pbxproj
++++ b/TrollApps/TrollApps.xcodeproj/project.pbxproj
+@@ -103,6 +103,7 @@
+ 		74E2E2AD2B25627B009E1D73 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
+ 		74E2E2B32B27C086009E1D73 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		74E2E2B52B27C098009E1D73 /* zh-Hans */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; lineEnding = 0; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
++		74E2E2B62B27C086009E1D74 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		74F1F9A45C32D0914B27E2A8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		CC759146293BD896007DE225 /* TSUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSUtil.m; sourceTree = "<group>"; };
+ 		CC759149293BD95A007DE225 /* SpringBoardFoundation.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = SpringBoardFoundation.tbd; path = TrollApps/SpringBoardFoundation.tbd; sourceTree = "<group>"; };
+@@ -337,6 +338,7 @@
+ 				ar,
+ 				"zh-Hant",
+ 				nb,
++				tr,
+ 				Base,
+ 			);
+ 			mainGroup = 6D8817B9291ECB97007139C6;
+@@ -421,6 +423,7 @@
+ 				740916BD2B2A45D10004A33A /* ar */,
+ 				7423BCCA2B2BE7AF000048BE /* zh-Hant */,
+ 				742E29902B2BF09700B2690D /* nb */,
++				74E2E2B62B27C086009E1D74 /* tr */,
+ 			);
+ 			name = Localizable.strings;
+ 			sourceTree = "<group>";
+diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
+index ca8ec62..a40400f 100644
+--- a/TrollApps/TrollApps/Functions/Repos.swift
++++ b/TrollApps/TrollApps/Functions/Repos.swift
+@@ -5,6 +5,8 @@
+ //  Created by Cleopatra on 2023-12-15.
+ //
+ 
++import Foundation
++
+ func reposEncode(reposUrl: [String]) -> String {
+     let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
+     
+@@ -35,3 +37,61 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+     
+     return components1.count >= components2.count
+ }
++
++// Cihazin su an calistigi iOS surumunu "major.minor.patch" biciminde dondurur.
++func currentOSVersionString() -> String {
++    let version = ProcessInfo.processInfo.operatingSystemVersion
++    return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
++}
++
++// Iki surum dizesini ayni bilesen sayisina getirir (eksikleri 0 ile doldurur),
++// boylece compareVersions'in "esit uzunluk" varsayimi bozulmaz.
++private func paddedVersion(_ version: String, componentCount: Int) -> String {
++    var components = version.components(separatedBy: CharacterSet(charactersIn: "."))
++    while components.count < componentCount {
++        components.append("0")
++    }
++    return components.joined(separator: ".")
++}
++
++// Cihazin iOS surumu verilen min/max araligina uyuyor mu?
++// nil veya bos degerler "kisitlama yok" olarak kabul edilir.
++func isVersionCompatible(minOSVersion: String?, maxOSVersion: String?, deviceVersion: String = currentOSVersionString()) -> Bool {
++    let minVersion = (minOSVersion ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++    let maxVersion = (maxOSVersion ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++    let device = deviceVersion.trimmingCharacters(in: .whitespacesAndNewlines)
++
++    guard !device.isEmpty else { return true }
++
++    let componentCount = [minVersion, maxVersion, device].reduce(3) { max($0, $1.components(separatedBy: CharacterSet(charactersIn: ".")).count) }
++
++    // Cihaz surumu min'den kucuk olmamali.
++    if !minVersion.isEmpty {
++        if !compareVersions(paddedVersion(device, componentCount: componentCount), paddedVersion(minVersion, componentCount: componentCount)) {
++            return false
++        }
++    }
++
++    // Max varsa cihaz surumu max'i asmamali.
++    if !maxVersion.isEmpty {
++        if !compareVersions(paddedVersion(maxVersion, componentCount: componentCount), paddedVersion(device, componentCount: componentCount)) {
++            return false
++        }
++    }
++
++    return true
++}
++
++// Yeniden eskiye sirali surum listesinde (dizi en yeni once) cihazin iOS surumuyle
++// uyumlu ilk (yani en yeni) surumun indeksini dondurur. Uyumlu surum yoksa nil.
++func compatibleVersionIndex(_ versions: [Version]?) -> Int? {
++    guard let versions = versions else { return nil }
++
++    for (index, version) in versions.enumerated() {
++        if isVersionCompatible(minOSVersion: version.minOSVersion, maxOSVersion: version.maxOSVersion) {
++            return index
++        }
++    }
++
++    return nil
++}
 diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 index 128d738..3b2bc6d 100644
 --- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
@@ -14,11 +117,180 @@ index 128d738..3b2bc6d 100644
  // Buttons
  "OPEN" = "OPEN";
  "GET" = "GET";
+diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
+new file mode 100644
+index 0000000..98c44f1
+--- /dev/null
++++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
+@@ -0,0 +1,163 @@
++/* 
++  Localizable.strings
++  TrollApps
++
++  Created by Cleopatra on 2023-12-11.
++  
++*/
++
++// Bottom Bar
++"FEATURED" = "Öne Çıkanlar";
++"REPOS" = "Kaynaklar";
++"BROWSE" = "Gözat";
++"APPS" = "Uygulamalar";
++"SETTINGS" = "Ayarlar";
++
++// Browse list sections
++"UPDATES" = "Güncellemeler";
++"ALL_APPS" = "Tüm Uygulamalar";
++"NO_UPDATES" = "Güncelleme yok";
++
++// Buttons
++"OPEN" = "AÇ";
++"GET" = "İNDİR";
++"UPDATE" = "GÜNCELLE";
++"OLDER" = "DAHA ESKİ";
++
++// Repos Menu
++"BROKEN_REPOS" = "Bozuk Kaynaklar";
++"BROKEN_SOURCES" = "Bozuk Kaynaklar";
++"EXPORT" = "Dışa Aktar";
++"DELETE" = "Sil";
++
++"UNNAMED_REPO" = "Adsız Kaynak";
++"COPY_REPO_URL" = "Kaynak URL'sini Kopyala";
++"COPY_REPO_BASE_URL" = "Kaynak[] URL'sini Kopyala";
++"COPY_SOURCE_URL" = "Kaynak URL'sini Kopyala";
++"DELETE_REPO" = "Kaynağı Sil";
++
++"UNABLE_TO_LOAD_REPO" = "Kaynak yüklenemedi";
++
++// Add Repo Menu
++"ADD_REPOS" = "Kaynak Ekle";
++"REPO_URL" = "Kaynak URL";
++"ADD_REPOS_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
++"ADD_REPO_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
++"ADD_REPO_FROM_CLIPBOARD" = "Panodan kaynak ekle";
++
++// Apps Detailed View
++"WHATS_NEW" = "Yenilikler";
++"VERSION %@" = "Sürüm %@";
++"UNKNOWN_VERSION" = "Bilinmeyen Sürüm";
++"UNKNOWN_DEVELOPER" = "Bilinmeyen Geliştirici";
++
++"SELECT_VERSION" = "Sürüm Seç";
++
++// Browse View
++"SEARCH" = "Ara";
++
++// Apps View
++"INSTALLED_APPS" = "Yüklü Uygulamalar";
++"UNINSTALLED_APP %@" = "%@ kaldırıldı";
++"UNINSTALL_APP" = "Uygulamayı Kaldır";
++
++// Settings View
++"OPTIONS" = "Seçenekler";
++"CLEAR_IMAGE_CACHE" = "Görsel Önbelleğini Temizle";
++"DELETE_CACHE" = "Önbelleği Sil";
++"RESET_REPOS" = "Kaynakları Sıfırla";
++"RELOAD_SPRINGBOARD" = "Springboard'u Yeniden Yükle";
++"CLEAR_CACHE_TOOLTIP" = "Uygulama önbelleğini temizlemek performansı artırabilir ve TrollApps'in kullandığı depolama alanını azaltabilir.";
++"Clear_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++"CLEAR_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++"DELETE_CACHE_TOOLTIP" = "\"Önbelleği Sil\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++
++"APP_SETTINGS" = "Uygulama Ayarları";
++"REDUCED_MOTION" = "Hareketi Azalt";
++"COMPACT_REPO_VIEW" = "Kompakt Kaynak Görünümü";
++"ADD_REPO_KEYBOARD_TYPE" = "Kaynak Ekleme Klavye Türü";
++"CURRENT_BLUR_STRENGTH %@" = "Arka Plan Bulanıklık Gücü: %@";
++
++"APP_LANGUAGE" = "Uygulama Dili";
++"LANG_SWITCHED" = "Dil Değiştirildi";
++"PLEASE_RESTART_THIS_APP_FOR_THIS_TO_TAKE_EFFECT" = "Bunun düzgün şekilde etkili olması için lütfen uygulamayı kapatıp yeniden açın.";
++
++"DEVELOPERS" = "Geliştiriciler";
++
++"THANKS_TO" = "Teşekkürler...";
++"THANKS_TO_TOOLTIP" = "Bu harika uygulamalara, makalelere ve kişilere en büyük teşekkürler! Onlar olmasaydı bu proje mümkün olmaz, hatta var olamazdı!";
++
++"TRANSLATORS" = "Çevirmenler";
++"THANKS_TO_TRANSLATORS" = "TrollApps'in yerelleştirilmesine yardımcı olan çevirmenlerimize çok teşekkürler!";
++
++"OTHER_PROJECTS_AND_LICENSES" = "Kullanılan diğer projeler ve lisansları";
++
++"HELP_THE_PROJECT" = "Projeye Yardımcı Olun";
++"JOIN_OUR_DISCORD" = "Discord'umuza katılın";
++"REPORT_A_BUG" = "Hata Bildir!";
++"JSON_TEMPLATE" = "Kendi kaynağınızı oluşturmak için JSON şablonu!";
++
++// Alerts
++"ALERT" = "Uyarı";
++"OK" = "Tamam";
++"CANCEL" = "İptal";
++"YES" = "Evet";
++
++"SUCCESS" = "Başarılı!";
++"THE_APP_WILL_NOW_QUIT" = "Uygulama şimdi kapanacak...";
++
++"CLEARING_CACHE" = "Önbellek Temizleniyor";
++"CLEARING_IMAGE_CACHE" = "Görsel Önbelleği Temizleniyor";
++"RESETING_REPOS" = "Kaynaklar Sıfırlanıyor";
++"RELOADING_SPRINGBOARD" = "Springboard Yeniden Yükleniyor";
++"PLEASE_WAIT" = "Lütfen Bekleyin";
++
++"COPIED_REPOS_TO_CLIPBOARD" = "Kaynak(lar) panoya kopyalandı";
++
++"DUPLICATE_REPO" = "Yinelenen Kaynak";
++"ALREADY_ON_REPO_LIST" = "Bu kaynağı zaten kaynak listenize eklediniz.";
++
++"ADDING_REPO" = "Kaynak Ekleniyor";
++
++"UNKNOWN_ERROR_WHILE_INSTALLING" = "Bu uygulama yüklenirken bilinmeyen bir hata oluştu.";
++"PLEASE_RETRY_LATER" = "Lütfen bu yüklemeyi başka bir zaman tekrar deneyin.";
++
++"FAILED_TO_DOWNLOAD_OR_PARSE_APP" = "Uygulama indirilemedi ve ayrıştırılamadı.";
++"THIS_COULD_BE_MISSING_PERMS_OR_BROKEN_LINK" = "Bunun nedeni eksik izinler veya bozuk bir indirme bağlantısı olabilir.";
++
++"FAILED_TO_FETCH_APP_DOWNLOAD_URL" = "Uygulama indirme URL'si alınamadı.";
++"LIKELY_REPO_ISSUE" = "Muhtemelen bir kaynak sorunu.";
++
++"UNABLE_TO_UPDATE" = "Güncellenemiyor.";
++"NOT_TROLLSTORE_MANAGED" = "Bu uygulama başlangıçta TrollStore üzerinden yüklenmediği için bu güncelleme yüklenemez. Uygulamayı kaldırıp TrollApps üzerinden yeniden yüklemeyi düşünün.";
++
++"UNABLE_TO_START_INSTALL" = "Uygulama yüklemesi başlatılamıyor.";
++"PLEASE_WAIT_FOR_CURRENT_INSTALL_TO_FINISH" = "Lütfen mevcut yüklemenin tamamlanmasını bekleyin.";
++
++"TROLLAPPS_WILL_CLOSE" = "TrollApps kapanacak ve güncelleme işlemini tamamlamak için TrollStore'a yönlendirileceksiniz.";
++"DO_YOU_STILL_WISH_TO_UPDATE" = "TrollApps'i yine de güncellemek istiyor musunuz?";
++
++"ERROR_DECODING_BASE64_STRING" = "Base64 dizesi çözümlenirken hata oluştu.";
++"PLEASE_VERIFY_VALID_REPO_STRING" = "Lütfen bunun geçerli bir kaynak[] dizesi olduğunu doğrulayın.";
++
++// Install / Uninstall / Download Errors
++"FAILED_TO_INSTALL" = "Yükleme Başarısız";
++"INSTALLATION_RETURNED_ERROR %@" = "Yükleme hata döndürdü: %@";
++
++"ERROR_REMOVING_IPA_FILE_AFTER_INSTALL" = "Yüklemeden sonra IPA dosyası kaldırılırken hata oluştu";
++"LIKELY_A_PERMS_ISSUE" = "Bu muhtemelen bir izin sorunudur.";
++
++"MISSING_DOWNLOADED_IPA" = "İndirilen IPA artık indirme konumunda değil.";
++
++"TROLLSTORE_NOT_FOUND" = "TrollStore bulunamadı";
++"TROLLSTORE_IS_REQUIRED" = "TrollApps'in çalışması için TrollStore gereklidir.";
++
++"FAILED_TO_UNINSTALL" = "Kaldırma başarısız";
++"UNINSTALLATION_RETURNED_ERROR %@" = "Kaldırma hata döndürdü: %@";
++
++"INVALID_DOWNLOAD_URL" = "İndirme URL'si geçersiz";
++"LIKELY_A_REPO_ISSUE" = "Bu muhtemelen bu kaynakla ilgili bir sorun.";
++
++"ERROR_REMOVING_EXISTING_IPA_FILE" = "Önceki yüklemeden kalan IPA dosyası kaldırılamadı.";
++
++"ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "IPA dosyası indirilemedi / yazılamadı";
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..e1fc8fc 100644
+index 5a4ce1f..b700e65 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
-@@ -11,13 +11,53 @@ struct AppListView: View {
+@@ -11,13 +11,62 @@ struct AppListView: View {
      var apps: [Application]
      var showFullMode: Bool
  
@@ -62,12 +334,21 @@ index 5a4ce1f..e1fc8fc 100644
 +        apps.filter { !isUpdateAvailable($0) }.sorted { $0.name < $1.name }
 +    }
 +
-+    /// Kurulu surumden daha yeni bir surum repoda varsa true.
++    /// Kurulu surumden daha yeni, cihazin iOS surumuyle uyumlu bir surum repoda varsa true.
 +    private func isUpdateAvailable(_ app: Application) -> Bool {
 +        guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
 +              repoManager.IsAppInstalled(bundleId) else { return false }
 +
-+        let latestVersion = app.versions?.first?.version ?? app.version ?? ""
++        let latestVersion: String
++        if let versions = app.versions, !versions.isEmpty {
++            // En yeni surum cihazin iOS surumuyle uyumlu degilse, o uygulama Updates'e girmez.
++            guard let compatibleIndex = compatibleVersionIndex(versions) else { return false }
++            latestVersion = versions[compatibleIndex].version
++        } else {
++            // Surum listesi yoksa (bazi repolarda olmuyor) eski davranisa dus: asla gizleme.
++            latestVersion = app.version ?? ""
++        }
++
 +        guard !latestVersion.isEmpty else { return false }
 +
 +        return repoManager.showUpdateButton(version1: latestVersion, BundleID: bundleId) == 1
@@ -75,3 +356,65 @@ index 5a4ce1f..e1fc8fc 100644
  }
  
  struct BrowseView: View {
+diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
+index 9419ce7..c6c42c4 100644
+--- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
++++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
+@@ -13,7 +13,8 @@ struct AppCell: View {
+     let showFullMode: Bool
+     
+     var body: some View {
+-        let version = (app.versions?[0].version != nil && app.versions?[0].version != "" ? (app.versions?[0].version ?? "") : "")
++        let compatibleIndex = compatibleVersionIndex(app.versions) ?? 0
++        let version = (app.versions?[compatibleIndex].version ?? "")
+         let devName = (app.developerName != nil && app.developerName != "" ? (app.developerName ?? "") : "")
+         
+         VStack(alignment: .leading) {
+@@ -43,7 +44,7 @@ struct AppCell: View {
+                         .foregroundColor(.gray)
+                 }
+                 Spacer()
+-                DynamicInstallButton(appDetails: app, selectedVersionIndex: 0, buttonStyle: "Main")
++                DynamicInstallButton(appDetails: app, selectedVersionIndex: compatibleIndex, buttonStyle: "Main")
+             }
+             
+             if showFullMode {
+diff --git a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
+index bab8c6c..dd9cd63 100644
+--- a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
++++ b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
+@@ -174,6 +174,10 @@ struct AppDetailsView: View {
+             .padding(.bottom, 20)
+         }
+         .navigationBarTitle("", displayMode: .inline)
++        .onAppear {
++            // En yeni surum cihazin iOS surumuyle uyumlu degilse uyumlu olani sec.
++            selectedVersionIndex = compatibleVersionIndex(appDetails.versions) ?? 0
++        }
+         
+         var backgroundFillColor: Color {
+             if let customTintColor = appDetails.tintColor, !customTintColor.isEmpty {
+diff --git a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
+index af671c8..c093a95 100644
+--- a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
++++ b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
+@@ -156,7 +156,8 @@ struct SettingsView: View {
+                       "Deutsch",
+                       "Bahasa Indonesia",
+                       "العربية",
+-                      "Norsk bokmål"
++                      "Norsk bokmål",
++                      "Türkçe"
+                     ];
+                     
+                     let langOptions = [
+@@ -166,7 +167,8 @@ struct SettingsView: View {
+                         "de",
+                         "id",
+                         "ar",
+-                        "nb"
++                        "nb",
++                        "tr"
+                     ];
+ 
+                     Picker("APP_LANGUAGE", selection: $userSettings.lang) {
