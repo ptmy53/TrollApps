@@ -27,7 +27,7 @@ index aea59ca..ca96690 100644
  			name = Localizable.strings;
  			sourceTree = "<group>";
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..0b98d60 100644
+index ca8ec62..6879745 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,8 @@
@@ -39,7 +39,7 @@ index ca8ec62..0b98d60 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +37,93 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +37,103 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -132,6 +132,16 @@ index ca8ec62..0b98d60 100644
 +    }
 +
 +    return nil
++}
++
++// App Store'un minimum iOS degeri, repo o surum icin hicbir sinir bildirmediginde ve
++// surum listenin en yenisi seciliyken dikkate alinir. Repo bir sinir bildiriyorsa
++// (ya da uyumlu daha eski bir surume dusulduyse) repo verisi kesindir.
++func shouldCheckStoreCompatibility(for version: Version, in versions: [Version]?, selectedIndex: Int, appMinOSVersion: String?, appMaxOSVersion: String?) -> Bool {
++    guard selectedIndex == 0 else { return false }
++
++    let bounds = resolvedOSBounds(for: version, in: versions, appMinOSVersion: appMinOSVersion, appMaxOSVersion: appMaxOSVersion)
++    return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
 +}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
 index 93e7fc1..3cd9a47 100644
@@ -546,10 +556,10 @@ index 0000000..f4dca6f
 +"ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "IPA dosyası indirilemedi / yazılamadı";
 +"IOS_VERSION_TOO_LOW" = "Daha yeni bir iOS sürümü gerekiyor";
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..c0e294e 100644
+index 5a4ce1f..c09bb2b 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
-@@ -11,13 +11,68 @@ struct AppListView: View {
+@@ -11,13 +11,77 @@ struct AppListView: View {
      var apps: [Application]
      var showFullMode: Bool
  
@@ -598,19 +608,22 @@ index 5a4ce1f..c0e294e 100644
 +        guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
 +              repoManager.IsAppInstalled(bundleId) else { return false }
 +
-+        // App Store'un guncel surumu bu cihaza uymuyorsa hic gosterme.
-+        if let storeMinOS = repoManager.storeMinimumOS[bundleId], !storeMinOS.isEmpty,
-+           !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil) {
-+            return false
-+        }
-+
 +        let latestVersion: String
 +        if let versions = app.versions, !versions.isEmpty {
 +            // En yeni surum cihazin iOS surumuyle uyumlu degilse, o uygulama Updates'e girmez.
 +            guard let compatibleIndex = compatibleVersionIndex(versions, appMinOSVersion: app.minOSVersion, appMaxOSVersion: app.maxOSVersion) else { return false }
++
++            // Repo o surum icin sinir bildiriyorsa (ya da uyumlu daha eski bir surume dusulduyse)
++            // repo verisi kesindir; App Store degeri o zaman guncellemeyi gizlemez.
++            if shouldCheckStoreCompatibility(for: versions[compatibleIndex], in: versions, selectedIndex: compatibleIndex, appMinOSVersion: app.minOSVersion, appMaxOSVersion: app.maxOSVersion),
++               isStoreVersionIncompatible(bundleId) {
++                return false
++            }
++
 +            latestVersion = versions[compatibleIndex].version
 +        } else {
 +            // Surum listesi yoksa (bazi repolarda olmuyor) eski davranisa dus: asla gizleme.
++            if isStoreVersionIncompatible(bundleId) { return false }
 +            latestVersion = app.version ?? ""
 +        }
 +
@@ -618,10 +631,16 @@ index 5a4ce1f..c0e294e 100644
 +
 +        return repoManager.showUpdateButton(version1: latestVersion, BundleID: bundleId) == 1
 +    }
++
++    /// App Store'un bildirdigi minimum iOS surumu cihaza uymuyorsa true.
++    private func isStoreVersionIncompatible(_ bundleId: String) -> Bool {
++        guard let storeMinOS = repoManager.storeMinimumOS[bundleId], !storeMinOS.isEmpty else { return false }
++        return !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
++    }
  }
  
  struct BrowseView: View {
-@@ -49,15 +104,24 @@ struct BrowseView: View {
+@@ -49,15 +113,24 @@ struct BrowseView: View {
                  }
              }
              .onAppear {
@@ -714,10 +733,10 @@ index af671c8..c093a95 100644
  
                      Picker("APP_LANGUAGE", selection: $userSettings.lang) {
 diff --git a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
-index c09a38e..e2fd28e 100644
+index c09a38e..978e861 100644
 --- a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
 +++ b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
-@@ -24,32 +24,54 @@ struct DynamicInstallButton: View {
+@@ -24,32 +24,57 @@ struct DynamicInstallButton: View {
  
      @ViewBuilder
      func appButton(json: Application) -> some View {
@@ -738,9 +757,12 @@ index c09a38e..e2fd28e 100644
 +                appMinOSVersion: appDetails.minOSVersion,
 +                appMaxOSVersion: appDetails.maxOSVersion
 +            )
-+            // App Store'un guncel surumu bu cihaza uymuyorsa teklif verme (zaten guncel olan OPEN kalir).
++            // App Store degeri yalnizca repo o surum icin hic sinir bildirmediginde ve en yeni
++            // surum seciliyken dikkate alinir (o zaman teklif verilmez; zaten guncel olan OPEN kalir).
 +            let storeMinOS = repoManager.storeMinimumOS[json.bundleIdentifier ?? ""]
-+            let storeIncompatible = !(storeMinOS ?? "").isEmpty && !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
++            let storeIncompatible = shouldCheckStoreCompatibility(for: selectedVersion, in: versions, selectedIndex: selectedVersionIndex, appMinOSVersion: appDetails.minOSVersion, appMaxOSVersion: appDetails.maxOSVersion)
++                && !(storeMinOS ?? "").isEmpty
++                && !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
 +
 +            if isVersionCompatible(minOSVersion: bounds.minOSVersion, maxOSVersion: bounds.maxOSVersion) {
 +                if repoManager.IsAppInstalled(json.bundleIdentifier ?? "") {

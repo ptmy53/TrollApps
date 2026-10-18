@@ -137,7 +137,7 @@ jobs:
           echo "--- UI strings inside binary ---"
           (strings -a "$APP/TrollApps" | grep -x -E 'UPDATES|ALL_APPS|NO_UPDATES' | sort -u) || echo "STRINGS NOT FOUND"
           echo "--- iOS compatibility code inside binary ---"
-          (strings -a "$APP/TrollApps" | grep -E 'itunes\.apple\.com/lookup|MinimumOSVersion|minOSVersion|storeMinimumOS' | sort -u) || echo "COMPAT STRINGS NOT FOUND"
+          (strings -a "$APP/TrollApps" | grep -E 'itunes\.apple\.com/lookup|MinimumOSVersion|minOSVersion|storeMinimumOS|shouldCheckStoreCompatibility' | sort -u) || echo "COMPAT STRINGS NOT FOUND"
 
       - name: Package IPA
         run: |
@@ -165,6 +165,6 @@ jobs:
           gh release create "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" \
             --repo "${{ github.repository }}" \
             --title "TrollApps 2.3 with Updates section (build ${{ github.run_number }})" \
-            --notes "TrollApps built from upstream source with an 'Updates' section at the top of the Browse list. Updates are filtered by iOS compatibility: repo minOSVersion/maxOSVersion when a source declares them, the App Store minimum iOS (Compatibility) value for installed apps, and a check of the downloaded IPA's Info.plist before installing. Includes a Turkish localization. Install with TrollStore." \
+            --notes "TrollApps built from upstream source with an 'Updates' section at the top of the Browse list. Updates are filtered by iOS compatibility: repository minOSVersion/maxOSVersion metadata wins whenever a source declares it (so an older version that still runs on your iOS is offered instead of dropping the app), the App Store minimum iOS (Compatibility) value is used as a fallback for installed apps whose source declares nothing, and the downloaded IPA's Info.plist is checked before installing. Includes a Turkish localization. Install with TrollStore." \
             || gh release upload "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" --repo "${{ github.repository }}" --clobber
           gh release view "$TAG" --repo "${{ github.repository }}" --json url -q .url
