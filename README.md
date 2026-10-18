@@ -44,7 +44,13 @@ This is a **personal fork** of [TheResonanceTeam/TrollApps](https://github.com/T
 | **Updates** | apps whose repositories offer a newer version that **actually runs on your iOS version** |
 | **All Apps** | everything else — the normal Get / Open / older-versions entries |
 
-**iOS-version aware updates.** Every version in a repo may declare `minOSVersion` / `maxOSVersion` (for example `14.0` … `17.0`). Only versions that fit the iOS version of the device are offered: a build that requires iOS 17 never shows up as an update on iOS 16.2, and if the newest build does not support your iOS, the newest build that **does** is used instead (the rest stay reachable through the app's *Select Version* list). Versions that declare no bounds count as compatible, so an app never disappears just because a repo is quiet about it. Update detection still reuses the app's own logic (`IsAppInstalled(bundleId)` + `showUpdateButton(version1:bundleID:)`), so a row lands under **Updates** exactly when it can really be updated on your device. Both headers are always visible; when nothing needs updating, the Updates section shows *No updates available*.
+**iOS-version aware updates.** An app only lands under **Updates** when the newer build really runs on your iOS version. Three sources are used:
+
+1. **Repo metadata.** Every version in a repo may declare `minOSVersion` / `maxOSVersion` (for example `14.0` … `17.0`). A build that requires iOS 17 never shows up as an update on iOS 16.2, and if the newest build does not support your iOS, the newest build that **does** is used instead (the rest stay reachable through the app's *Select Version* list). Versions that declare no bounds count as compatible, so an app never disappears just because a repo is quiet about it.
+2. **App Store compatibility (installed apps).** Community TrollStore sources usually declare no iOS requirement at all, so the minimum iOS that the App Store itself shows under *Compatibility* is fetched from Apple's public catalog service (`itunes.apple.com/lookup`, several apps per request, cached for 24 hours) and applied too: if the app's current release needs a newer iOS than yours, it is not offered as an update and its row shows a disabled button. An app that is already up to date still shows **OPEN**, and without an internet connection the previous behaviour is kept.
+3. **The downloaded IPA.** As a last safety net, the `MinimumOSVersion` inside the IPA's `Info.plist` is checked after the download and before installing: if your iOS is too old the install is refused, the file is deleted and the queue shows *Needs a newer iOS version*.
+
+Update detection still reuses the app's own logic (`IsAppInstalled(bundleId)` + `showUpdateButton(version1:bundleID:)`), so a row lands under **Updates** exactly when it can really be updated on your device. Both headers are always visible; when nothing needs updating, the Updates section shows *No updates available*.
 
 **Full Turkish interface.** The whole app is translated into Turkish (`tr.lproj`, every key the app uses, including the new section headers). Choose **Türkçe** in **Settings → App Language** and restart the app, or simply use a Turkish system language.
 
@@ -67,7 +73,7 @@ The IPA is built from source in this repository and signed with the same privile
 
 Everything needed is in this repo:
 
-- **[`updates-section.patch`](https://github.com/ptmy53/TrollApps/blob/main/updates-section.patch)** — the complete source change (8 files: the Browse section split, the iOS-compatibility helpers, the full `tr.lproj` and the Turkish entry in the language picker).
+- **[`updates-section.patch`](https://github.com/ptmy53/TrollApps/blob/main/updates-section.patch)** — the complete source change (12 files: the Browse section split, the repo-based iOS-compatibility helpers, the App Store lookup, the downloaded-IPA check, the full `tr.lproj` and the Turkish entry in the language picker).
 - **[`.github/workflows/build-ipa.yml`](https://github.com/ptmy53/TrollApps/blob/main/.github/workflows/build-ipa.yml)** — clones the upstream project, applies the patch, builds it with Xcode on a macOS runner, signs it with `ldid` and publishes the IPA as a release.
 
 Just run **Actions → Build TrollApps IPA (Updates section) → Run workflow**; the finished IPA shows up under **Releases**.
@@ -76,7 +82,8 @@ Just run **Actions → Build TrollApps IPA (Updates section) → Run workflow**;
 
 - The version number stays **2.3** (the upstream release this is based on).
 - The localization keys `UPDATES` / `ALL_APPS` / `NO_UPDATES` are added for **English and Turkish**; other languages fall back to the key text.
-- The iOS compatibility check can only be as good as the repo data: it uses the `minOSVersion` / `maxOSVersion` fields a repo provides. If a repo does not declare them, the version is treated as compatible.
+- The iOS compatibility check has three layers: the `minOSVersion` / `maxOSVersion` fields a repo provides, the App Store *Compatibility* value for installed apps, and the `MinimumOSVersion` of the downloaded IPA. An app that declares nothing anywhere **and** is not on the App Store can still appear in the list, but the install-time IPA check will refuse it.
+- The App Store value describes the App Store's *current* release, so it is applied to the whole row even when a source hosts a different build; heavy sources that mirror the App Store are therefore filtered exactly like the App Store page you are comparing with.
 - **Unofficial personal build** — all credit for TrollApps goes to [TheResonanceTeam](https://github.com/TheResonanceTeam/TrollApps). Licensed under **GPL-3.0**, same as upstream; this fork keeps its source public so the modification can be rebuilt and audited.
 
 ---
@@ -86,7 +93,7 @@ Just run **Actions → Build TrollApps IPA (Updates section) → Run workflow**;
 Bu depo, TrollApps 2.3 üzerine yapılmış **kişisel** bir fork. Üç ekleme var:
 
 - **Updates / All Apps bölümleri:** Browse ekranı üstte güncellemesi olanlar, altta geri kalanlar olacak şekilde ikiye ayrılıyor.
-- **iOS sürümüne duyarlı güncelleme:** Bir güncelleme yalnızca cihazının iOS sürümüyle **uyumluysa** gösteriliyor. Repolar her sürüm için `minOSVersion` / `maxOSVersion` bildirebiliyor (ör. `14.0` … `17.0`); iOS 17 isteyen bir sürüm, iOS 16.2 bir cihazda Updates listesinde çıkmıyor. En yeni sürüm senin iOS'unda çalışmıyorsa, senin sürümünü destekleyen **en yeni** sürüme düşülüyor; kalan eski sürümler uygulama içindeki **Sürüm Seç** menüsünde durmaya devam ediyor. Bu alanları bildirmeyen sürümler "her zaman uyumlu" sayılıyor, yani repolar yüzünden hiçbir uygulama kaybolmuyor.
+- **iOS sürümüne duyarlı güncelleme (üç katman):** Bir güncelleme yalnızca cihazının iOS sürümüyle **uyumluysa** gösteriliyor. (1) Repolar her sürüm için `minOSVersion` / `maxOSVersion` bildirebiliyor (ör. `14.0` … `17.0`); iOS 17 isteyen bir sürüm, iOS 16.2 bir cihazda Updates listesinde çıkmıyor. En yeni sürüm senin iOS'unda çalışmıyorsa, senin sürümünü destekleyen **en yeni** sürüme düşülüyor; kalan eski sürümler **Sürüm Seç** menüsünde durmaya devam ediyor. Bu alanları bildirmeyen sürümler "her zaman uyumlu" sayılıyor. (2) Topluluk TrollStore kaynakları bu alanları neredeyse hiç bildirmiyor; bu yüzden **kurulu** uygulamalar için App Store'un **Uyumluluk** satırındaki minimum iOS değeri Apple'ın katalog servisinden çekiliyor (`itunes.apple.com/lookup`, tek istekte birden fazla uygulama, 24 saat önbellek). App Store yeni sürüm için senden daha yeni bir iOS istiyorsa uygulama güncelleme olarak gösterilmiyor ve satırdaki düğme pasif oluyor; zaten güncel olan uygulamalar **AÇ** göstermeye devam ediyor, internet yoksa eski davranış korunuyor. (3) Son güvenlik ağı: indirilen IPA'nın `Info.plist` içindeki `MinimumOSVersion` kontrol ediliyor — cihazın iOS'u yetmiyorsa kurulum yapılmıyor, dosya siliniyor ve kuyrukta "Daha yeni bir iOS sürümü gerekiyor" mesajı görünüyor.
 - **Tam Türkçe arayüz:** Uygulamanın tamamı (tüm anahtarlar, `tr.lproj`) Türkçeye çevrildi. **Ayarlar → Uygulama Dili → Türkçe** seçip uygulamayı yeniden başlat; ya da telefonun dili Türkçe ise doğrudan Türkçe açılır.
 
 **İndirme:** [Son derlenmiş IPA](https://github.com/ptmy53/TrollApps/releases/latest) → **TrollStore → + → indirilen `TrollApps-updates.ipa`** seçilerek kurulur. Aynı bundle id kullanıldığı için mevcut TrollApps uygulamasının üzerine kurulur; repo ve ayarların silinmez.
