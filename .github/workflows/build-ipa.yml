@@ -34,14 +34,40 @@ jobs:
           cd src
           git apply --verbose "$GITHUB_WORKSPACE/updates-section.patch"
 
+      - name: Add shared scheme
+        run: |
+          mkdir -p src/TrollApps/TrollApps.xcodeproj/xcshareddata/xcschemes
+          cat > src/TrollApps/TrollApps.xcodeproj/xcshareddata/xcschemes/TrollApps.xcscheme <<'SCHEME'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Scheme LastUpgradeVersion="1540" version="1.7">
+            <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+              <BuildActionEntries>
+                <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
+                  <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="6D8817C1291ECB97007139C6" BuildableName="TrollApps.app" BlueprintName="TrollApps" ReferencedContainer="container:TrollApps.xcodeproj"/>
+                </BuildActionEntry>
+              </BuildActionEntries>
+            </BuildAction>
+            <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
+              <BuildableProductRunnable runnableDebuggingMode="0">
+                <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="6D8817C1291ECB97007139C6" BuildableName="TrollApps.app" BlueprintName="TrollApps" ReferencedContainer="container:TrollApps.xcodeproj"/>
+              </BuildableProductRunnable>
+            </LaunchAction>
+            <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"/>
+            <AnalyzeAction buildConfiguration="Debug"/>
+            <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+          </Scheme>
+          SCHEME
+          xcodebuild -project src/TrollApps/TrollApps.xcodeproj -list
+
       - name: Build (unsigned)
         run: |
           cd src
           xcodebuild \
             -project TrollApps/TrollApps.xcodeproj \
-            -target TrollApps \
+            -scheme TrollApps \
             -configuration Release \
             -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -51,7 +77,7 @@ jobs:
             ONLY_ACTIVE_ARCH=NO \
             build
           echo "--- build products ---"
-          ls -la "$GITHUB_WORKSPACE/src/TrollApps/build/Release-iphoneos" || true
+          ls -la "$RUNNER_TEMP/dd/Build/Products/Release-iphoneos" || true
 
       - name: Write entitlements
         run: |
@@ -87,7 +113,7 @@ jobs:
 
       - name: Sign app
         run: |
-          APP="$GITHUB_WORKSPACE/src/TrollApps/build/Release-iphoneos/TrollApps.app"
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
           ls -la "$APP"
           brew install ldid >/dev/null 2>&1 || true
           if ! command -v ldid >/dev/null 2>&1; then
@@ -102,10 +128,11 @@ jobs:
             codesign --force --sign - --entitlements "$RUNNER_TEMP/ent.plist" "$APP/TrollApps"
             echo "OK: codesign (ad-hoc)"
           fi
+          ldid -e "$APP/TrollApps" 2>/dev/null | head -20 || true
 
       - name: Package IPA
         run: |
-          APP="$GITHUB_WORKSPACE/src/TrollApps/build/Release-iphoneos/TrollApps.app"
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
           rm -rf "$RUNNER_TEMP/pkg"
           mkdir -p "$RUNNER_TEMP/pkg/Payload"
           cp -R "$APP" "$RUNNER_TEMP/pkg/Payload/TrollApps.app"
