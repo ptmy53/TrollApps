@@ -42,7 +42,7 @@ jobs:
             -target TrollApps \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/out" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -86,7 +86,7 @@ jobs:
 
       - name: Sign app
         run: |
-          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
+          APP="$RUNNER_TEMP/out/TrollApps.app"
           ls -la "$APP"
           brew install ldid >/dev/null 2>&1 || true
           if ! command -v ldid >/dev/null 2>&1; then
@@ -104,7 +104,7 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
+          APP="$RUNNER_TEMP/out/TrollApps.app"
           rm -rf "$RUNNER_TEMP/pkg"
           mkdir -p "$RUNNER_TEMP/pkg/Payload"
           cp -R "$APP" "$RUNNER_TEMP/pkg/Payload/TrollApps.app"
