@@ -1,0 +1,119 @@
+name: Build TrollApps IPA (Updates section)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-ipa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          if [ -d /Applications/Xcode_15.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          else
+            newest="$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1)"
+            if [ -n "$newest" ]; then sudo xcode-select -s "$newest/Contents/Developer"; fi
+          fi
+          xcodebuild -version
+
+      - name: Clone upstream
+        run: git clone --depth 1 https://github.com/TheResonanceTeam/TrollApps.git src
+
+      - name: Apply UI patch
+        run: |
+          cd src
+          git apply --verbose "$GITHUB_WORKSPACE/updates-section.patch"
+
+      - name: Build (unsigned)
+        run: |
+          cd src
+          xcodebuild \
+            -project TrollApps/TrollApps.xcodeproj \
+            -target TrollApps \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            SWIFT_VERSION=5.0 \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Write entitlements
+        run: |
+          cat > "$RUNNER_TEMP/ent.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key>
+            <string>org.resonance.store</string>
+            <key>platform-application</key>
+            <true/>
+            <key>com.apple.private.security.no-sandbox</key>
+            <true/>
+            <key>com.apple.private.security.container-manager</key>
+            <true/>
+            <key>com.apple.private.security.storage.AppBundles</key>
+            <true/>
+            <key>com.apple.private.security.storage.AppDataContainers</key>
+            <true/>
+            <key>com.apple.private.MobileContainerManager.allowed</key>
+            <true/>
+            <key>com.apple.private.persona-mgmt</key>
+            <true/>
+            <key>com.apple.security.exception.files.absolute-path.read-write</key>
+            <array>
+              <string>/</string>
+            </array>
+          </dict>
+          </plist>
+          PLIST
+          plutil -lint "$RUNNER_TEMP/ent.plist"
+
+      - name: Sign app
+        run: |
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
+          ls -la "$APP"
+          brew install ldid >/dev/null 2>&1 || true
+          if ! command -v ldid >/dev/null 2>&1; then
+            curl -fsSL -o "$RUNNER_TEMP/ldid" https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_macosx_arm64 || true
+            chmod +x "$RUNNER_TEMP/ldid" 2>/dev/null || true
+            export PATH="$RUNNER_TEMP:$PATH"
+          fi
+          if command -v ldid >/dev/null 2>&1; then
+            ldid -S"$RUNNER_TEMP/ent.plist" "$APP/TrollApps"
+            echo "OK: ldid"
+          else
+            codesign --force --sign - --entitlements "$RUNNER_TEMP/ent.plist" "$APP/TrollApps"
+            echo "OK: codesign (ad-hoc)"
+          fi
+
+      - name: Package IPA
+        run: |
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
+          rm -rf "$RUNNER_TEMP/pkg"
+          mkdir -p "$RUNNER_TEMP/pkg/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/pkg/Payload/TrollApps.app"
+          cd "$RUNNER_TEMP/pkg"
+          zip -qry "$RUNNER_TEMP/TrollApps-updates.ipa" Payload
+          ls -la "$RUNNER_TEMP/TrollApps-updates.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrollApps-updates-ipa
+          path: ${{ runner.temp }}/TrollApps-updates.ipa
+          if-no-files-found: error
