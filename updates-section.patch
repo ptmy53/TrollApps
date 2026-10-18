@@ -1,0 +1,77 @@
+diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
+index 128d738..3b2bc6d 100644
+--- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
++++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
+@@ -13,6 +13,11 @@
+ "APPS" = "Apps";
+ "SETTINGS" = "Settings";
+ 
++// Browse list sections
++"UPDATES" = "Updates";
++"ALL_APPS" = "All Apps";
++"NO_UPDATES" = "No updates available";
++
+ // Buttons
+ "OPEN" = "OPEN";
+ "GET" = "GET";
+diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
+index 5a4ce1f..e1fc8fc 100644
+--- a/TrollApps/TrollApps/Views/BrowseView.swift
++++ b/TrollApps/TrollApps/Views/BrowseView.swift
+@@ -11,13 +11,53 @@ struct AppListView: View {
+     var apps: [Application]
+     var showFullMode: Bool
+ 
++    @EnvironmentObject var repoManager: RepositoryManager
++
+     var body: some View {
+-        List(apps.sorted { $0.name < $1.name }, id: \.self) { app in
+-            AppCell(app: app, showFullMode: showFullMode)
+-                .listRowInsets(EdgeInsets())
++        List {
++            Section(header: Text("UPDATES")) {
++                if updates.isEmpty {
++                    Text("NO_UPDATES")
++                        .font(.caption)
++                        .foregroundColor(.gray)
++                } else {
++                    ForEach(updates, id: \.self) { app in
++                        AppCell(app: app, showFullMode: showFullMode)
++                            .listRowInsets(EdgeInsets())
++                    }
++                }
++            }
++
++            Section(header: Text("ALL_APPS")) {
++                ForEach(others, id: \.self) { app in
++                    AppCell(app: app, showFullMode: showFullMode)
++                        .listRowInsets(EdgeInsets())
++                }
++            }
+         }
+         .listStyle(PlainListStyle())
+     }
++
++    /// Guncellemesi olan uygulamalar, isme gore A-Z.
++    private var updates: [Application] {
++        apps.filter(isUpdateAvailable).sorted { $0.name < $1.name }
++    }
++
++    /// Kalan uygulamalar, isme gore A-Z (onceki davranis).
++    private var others: [Application] {
++        apps.filter { !isUpdateAvailable($0) }.sorted { $0.name < $1.name }
++    }
++
++    /// Kurulu surumden daha yeni bir surum repoda varsa true.
++    private func isUpdateAvailable(_ app: Application) -> Bool {
++        guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
++              repoManager.IsAppInstalled(bundleId) else { return false }
++
++        let latestVersion = app.versions?.first?.version ?? app.version ?? ""
++        guard !latestVersion.isEmpty else { return false }
++
++        return repoManager.showUpdateButton(version1: latestVersion, BundleID: bundleId) == 1
++    }
+ }
+ 
+ struct BrowseView: View {
