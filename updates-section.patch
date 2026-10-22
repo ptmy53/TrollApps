@@ -1,0 +1,943 @@
+diff --git a/TrollApps/TrollApps.xcodeproj/project.pbxproj b/TrollApps/TrollApps.xcodeproj/project.pbxproj
+index aea59ca..ca96690 100644
+--- a/TrollApps/TrollApps.xcodeproj/project.pbxproj
++++ b/TrollApps/TrollApps.xcodeproj/project.pbxproj
+@@ -103,6 +103,7 @@
+ 		74E2E2AD2B25627B009E1D73 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
+ 		74E2E2B32B27C086009E1D73 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		74E2E2B52B27C098009E1D73 /* zh-Hans */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; lineEnding = 0; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
++		74E2E2B62B27C086009E1D74 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		74F1F9A45C32D0914B27E2A8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+ 		CC759146293BD896007DE225 /* TSUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSUtil.m; sourceTree = "<group>"; };
+ 		CC759149293BD95A007DE225 /* SpringBoardFoundation.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = SpringBoardFoundation.tbd; path = TrollApps/SpringBoardFoundation.tbd; sourceTree = "<group>"; };
+@@ -337,6 +338,7 @@
+ 				ar,
+ 				"zh-Hant",
+ 				nb,
++				tr,
+ 				Base,
+ 			);
+ 			mainGroup = 6D8817B9291ECB97007139C6;
+@@ -421,6 +423,7 @@
+ 				740916BD2B2A45D10004A33A /* ar */,
+ 				7423BCCA2B2BE7AF000048BE /* zh-Hant */,
+ 				742E29902B2BF09700B2690D /* nb */,
++				74E2E2B62B27C086009E1D74 /* tr */,
+ 			);
+ 			name = Localizable.strings;
+ 			sourceTree = "<group>";
+diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
+index ca8ec62..da9b6b4 100644
+--- a/TrollApps/TrollApps/Functions/Repos.swift
++++ b/TrollApps/TrollApps/Functions/Repos.swift
+@@ -5,6 +5,8 @@
+ //  Created by Cleopatra on 2023-12-15.
+ //
+ 
++import Foundation
++
+ func reposEncode(reposUrl: [String]) -> String {
+     let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
+     
+@@ -35,3 +37,141 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+     
+     return components1.count >= components2.count
+ }
++
++// Cihazin su an calistigi iOS surumunu "major.minor.patch" biciminde dondurur.
++func currentOSVersionString() -> String {
++    let version = ProcessInfo.processInfo.operatingSystemVersion
++    return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
++}
++
++// Iki surum dizesini ayni bilesen sayisina getirir (eksikleri 0 ile doldurur),
++// boylece compareVersions'in "esit uzunluk" varsayimi bozulmaz.
++private func paddedVersion(_ version: String, componentCount: Int) -> String {
++    var components = version.components(separatedBy: CharacterSet(charactersIn: "."))
++    while components.count < componentCount {
++        components.append("0")
++    }
++    return components.joined(separator: ".")
++}
++
++// Cihazin iOS surumu verilen min/max araligina uyuyor mu?
++// nil veya bos degerler "kisitlama yok" olarak kabul edilir.
++func isVersionCompatible(minOSVersion: String?, maxOSVersion: String?, deviceVersion: String = currentOSVersionString()) -> Bool {
++    let minVersion = (minOSVersion ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++    let maxVersion = (maxOSVersion ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++    let device = deviceVersion.trimmingCharacters(in: .whitespacesAndNewlines)
++
++    guard !device.isEmpty else { return true }
++
++    let componentCount = [minVersion, maxVersion, device].reduce(3) { max($0, $1.components(separatedBy: CharacterSet(charactersIn: ".")).count) }
++
++    // Cihaz surumu min'den kucuk olmamali.
++    if !minVersion.isEmpty {
++        if !compareVersions(paddedVersion(device, componentCount: componentCount), paddedVersion(minVersion, componentCount: componentCount)) {
++            return false
++        }
++    }
++
++    // Max varsa cihaz surumu max'i asmamali.
++    if !maxVersion.isEmpty {
++        if !compareVersions(paddedVersion(maxVersion, componentCount: componentCount), paddedVersion(device, componentCount: componentCount)) {
++            return false
++        }
++    }
++
++    return true
++}
++
++// Bos/nil sinir "kisitlama yok" demektir.
++private func hasOSBound(_ value: String?) -> Bool {
++    return !(value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
++}
++
++// Bir surumun iOS sinirlarinin cozulmus halini dondurur. Oncelik sirasi:
++// 1) surumun kendi sinirlari, 2) versions icinde ayni "version" dizesine sahip ve
++// en az bir dolu siniri olan ilk kayit (repolarin uygulama duzeyinde ekledigi kopya),
++// 3) uygulama duzeyindeki sinirlar, 4) hicbir kisitlama yok.
++func resolvedOSBounds(for version: Version, in versions: [Version]?, appMinOSVersion: String?, appMaxOSVersion: String?) -> (minOSVersion: String?, maxOSVersion: String?) {
++    if hasOSBound(version.minOSVersion) || hasOSBound(version.maxOSVersion) {
++        return (version.minOSVersion, version.maxOSVersion)
++    }
++
++    if let twin = versions?.first(where: { $0.version == version.version && (hasOSBound($0.minOSVersion) || hasOSBound($0.maxOSVersion)) }) {
++        return (twin.minOSVersion, twin.maxOSVersion)
++    }
++
++    if hasOSBound(appMinOSVersion) || hasOSBound(appMaxOSVersion) {
++        return (appMinOSVersion, appMaxOSVersion)
++    }
++
++    return (nil, nil)
++}
++
++// Tek bir surumun, cozulmus sinirlarina gore cihazin iOS surumuyle uyumlu olup olmadigi.
++func isVersionCompatible(version: Version, in versions: [Version]?, appMinOSVersion: String?, appMaxOSVersion: String?, deviceVersion: String = currentOSVersionString()) -> Bool {
++    let bounds = resolvedOSBounds(for: version, in: versions, appMinOSVersion: appMinOSVersion, appMaxOSVersion: appMaxOSVersion)
++    return isVersionCompatible(minOSVersion: bounds.minOSVersion, maxOSVersion: bounds.maxOSVersion, deviceVersion: deviceVersion)
++}
++
++// Yeniden eskiye sirali surum listesinde (dizi en yeni once) cihazin iOS surumuyle
++// uyumlu ilk (yani en yeni) surumun indeksini dondurur. Uyumlu surum yoksa nil.
++// Uygulama duzeyindeki sinirlar, kendi siniri olmayan surumler icin yedektir.
++func compatibleVersionIndex(_ versions: [Version]?, appMinOSVersion: String? = nil, appMaxOSVersion: String? = nil, deviceVersion: String = currentOSVersionString()) -> Int? {
++    guard let versions = versions else { return nil }
++
++    for (index, version) in versions.enumerated() {
++        if isVersionCompatible(version: version, in: versions, appMinOSVersion: appMinOSVersion, appMaxOSVersion: appMaxOSVersion, deviceVersion: deviceVersion) {
++            return index
++        }
++    }
++
++    return nil
++}
++
++// App Store'un minimum iOS degeri, repo o surum icin hicbir sinir bildirmediginde ve
++// surum listenin en yenisi seciliyken dikkate alinir. Repo bir sinir bildiriyorsa
++// (ya da uyumlu daha eski bir surume dusulduyse) repo verisi kesindir.
++func shouldCheckStoreCompatibility(for version: Version, in versions: [Version]?, selectedIndex: Int, appMinOSVersion: String?, appMaxOSVersion: String?) -> Bool {
++    guard selectedIndex == 0 else { return false }
++
++    let bounds = resolvedOSBounds(for: version, in: versions, appMinOSVersion: appMinOSVersion, appMaxOSVersion: appMaxOSVersion)
++    return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
++}
++
++// MARK: Kullanici tarafindan gizlenen uygulamalar (UserDefaults)
++// Depolama: "hiddenIncompatibleApps" anahtarindaki sozluk. Anahtar bundleId,
++// deger [ad, en yeni surum dizesi, gizleme zaman damgasi (epoch)] listesidir.
++// Kural: repodaki en yeni surum dizesi degismedikce uygulama listelerde
++// gosterilmez; yeni bir surum yayimlanirsa kayit otomatik gecersiz olur.
++
++func hiddenAppsDictionary() -> [String: [String]] {
++    return UserDefaults.standard.dictionary(forKey: "hiddenIncompatibleApps") as? [String: [String]] ?? [:]
++}
++
++private func saveHiddenAppsDictionary(_ dictionary: [String: [String]]) {
++    UserDefaults.standard.set(dictionary, forKey: "hiddenIncompatibleApps")
++}
++
++// Uygulama gizliyse ve repodaki en yeni surum dizesi yine ayniysa true doner.
++func isAppHidden(_ bundleId: String?, newestVersion: String?) -> Bool {
++    guard let bundleId = bundleId, !bundleId.isEmpty else { return false }
++    guard let entry = hiddenAppsDictionary()[bundleId], entry.count >= 2 else { return false }
++    return entry[1] == (newestVersion ?? "")
++}
++
++// Uygulamayi gizli listeye ekler; ayni bundleId icin eski kaydi gunceller.
++func hideApp(bundleId: String?, name: String, newestVersion: String) {
++    guard let bundleId = bundleId, !bundleId.isEmpty else { return }
++
++    var dictionary = hiddenAppsDictionary()
++    let epoch = String(Int(Date().timeIntervalSince1970))
++    dictionary[bundleId] = [name, newestVersion, epoch]
++    saveHiddenAppsDictionary(dictionary)
++}
++
++// Gizleme kaydini kaldirir (kayit yoksa hicbir sey yapmaz).
++func unhideApp(_ bundleId: String) {
++    var dictionary = hiddenAppsDictionary()
++    dictionary.removeValue(forKey: bundleId)
++    saveHiddenAppsDictionary(dictionary)
++}
+diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
+index 93e7fc1..3cd9a47 100644
+--- a/TrollApps/TrollApps/Managers/InstallManager.swift
++++ b/TrollApps/TrollApps/Managers/InstallManager.swift
+@@ -6,6 +6,36 @@
+ //
+ 
+ import Combine
++import ZIPFoundation
++
++// Indirilen IPA'nin Info.plist'inden MinimumOSVersion degerini okur.
++// Okunamayan / beklenmeyen yerlesimde nil doner, boylece kurulum eskisi gibi devam eder.
++func minimumOSVersionInIPA(_ ipaPath: String) -> String? {
++    guard let archive = try? Archive(url: URL(fileURLWithPath: ipaPath), accessMode: .read) else { return nil }
++
++    for entry in archive {
++        let path = entry.path
++        guard path.hasPrefix("Payload/"), path.hasSuffix(".app/Info.plist") else { continue }
++        // Payload/App.app/Info.plist disindaki (or. uzantilar) girdileri atla.
++        guard path.filter({ $0 == "/" }).count == 2 else { continue }
++
++        var data = Data()
++        do {
++            _ = try archive.extract(entry) { chunk in
++                data.append(chunk)
++            }
++        } catch {
++            return nil
++        }
++
++        guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
++              let plistDictionary = plist as? [String: Any] else { return nil }
++
++        return plistDictionary["MinimumOSVersion"] as? String
++    }
++
++    return nil
++}
+ 
+ func InstallIPA(_ itemID: UUID, queueManager: QueueManager, completion: @escaping (FunctionStatus) -> Void) {
+         
+@@ -17,6 +47,13 @@ func InstallIPA(_ itemID: UUID, queueManager: QueueManager, completion: @escapin
+     if !FileManager.default.fileExists(atPath: IPAPathURL.path) {
+         completion(FunctionStatus(error: true, message: ErrorMessage(title: "FNF \(IPAPathURL.path)", body: "File does not exist")))
+         return
++    } else if let ipaMinOS = minimumOSVersionInIPA(IPAPathURL.path),
++              !ipaMinOS.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
++              !isVersionCompatible(minOSVersion: ipaMinOS, maxOSVersion: nil) {
++        // IPA'nin istedigi minimum iOS surumu cihazdan yeni: kurmayi reddet ve dosyayi temizle.
++        try? FileManager.default.removeItem(atPath: IPAPathURL.path)
++        completion(FunctionStatus(error: true, message: ErrorMessage(title: "IOS_VERSION_TOO_LOW", body: ipaMinOS)))
++        return
+     } else if let trollStoreApp = SBFApplication(applicationBundleIdentifier: "com.opa334.TrollStore") {
+         let trollstoreHelperPath = trollStoreApp.bundleURL.path + "/trollstorehelper"
+         let returnCode = spawnRoot(trollstoreHelperPath, ["install", IPAPathURL.path])
+diff --git a/TrollApps/TrollApps/Managers/QueueManager.swift b/TrollApps/TrollApps/Managers/QueueManager.swift
+index e7a5c20..e55e5bb 100644
+--- a/TrollApps/TrollApps/Managers/QueueManager.swift
++++ b/TrollApps/TrollApps/Managers/QueueManager.swift
+@@ -184,7 +184,7 @@ struct QueueManagerView<Content: View>: View {
+                                                 Text(queueItem.name)
+                                                 
+                                                 if queueItem.error {
+-                                                    Text(queueItem.message.title)
++                                                    Text(LocalizedStringKey(queueItem.message.title))
+                                                         .font(.caption)
+                                                         .foregroundColor(.gray)
+                                                 } else if queueManager.isProcessing {
+diff --git a/TrollApps/TrollApps/Managers/RepoManager.swift b/TrollApps/TrollApps/Managers/RepoManager.swift
+index e76b617..508e5b2 100644
+--- a/TrollApps/TrollApps/Managers/RepoManager.swift
++++ b/TrollApps/TrollApps/Managers/RepoManager.swift
+@@ -108,9 +108,11 @@ struct Application: Codable, Identifiable, Hashable {
+     var iconURL: String
+     var screenshotURLs: [String]?
+     var versions: [Version]?
++    var minOSVersion: String?
++    var maxOSVersion: String?
+ 
+     enum CodingKeys: String, CodingKey {
+-        case name, subtitle, bundleIdentifier, version, versionDate, size, downloadURL, developerName, localizedDescription, tintColor, iconURL, screenshotURLs, versions
++        case name, subtitle, bundleIdentifier, version, versionDate, size, downloadURL, developerName, localizedDescription, tintColor, iconURL, screenshotURLs, versions, minOSVersion, maxOSVersion
+     }
+ 
+     func hash(into hasher: inout Hasher) {
+@@ -136,6 +138,13 @@ class RepositoryManager: ObservableObject {
+     @Published var isInstallingApp = false
+     @Published var isDownloadingApp = false
+     
++    // bundleID -> App Store'daki minimum iOS surumu (bos deger: App Store'da bulunamadi).
++    @Published var storeMinimumOS: [String: String] = [:]
++    
++    private let storeCacheKey = "storeMinimumOSCache"
++    private let storeCacheTTL: TimeInterval = 24 * 60 * 60
++    private var storeLookupsInFlight: Set<String> = []
++    
+     
+     func fetchRepos() {
+         self.hasFetchedRepos = true
+@@ -143,10 +152,121 @@ class RepositoryManager: ObservableObject {
+             self.ReposData = fetchedResults
+             self.BadRepos = errors
+             
++            let bundleIDs = fetchedResults.flatMap { $0.data.apps }.compactMap { $0.bundleIdentifier }.filter { self.IsAppInstalled($0) }
++            self.refreshStoreMinimumOS(for: bundleIDs)
++            
+             self.hasFinishedFetchingRepos = true
+         }
+     }
+     
++    // Kurulu uygulamalarin App Store'daki minimum iOS surumunu toplu halde tazeler.
++    // Onbellekte taze kaydi olanlar tekrar sorulmaz; ag hatasi onbellege yazilmaz.
++    func refreshStoreMinimumOS(for bundleIDs: [String]) {
++        var pending: [String] = []
++        var seen: Set<String> = []
++        let cache = loadStoreCache()
++        
++        for bundleID in bundleIDs {
++            let id = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
++            guard !id.isEmpty, !seen.contains(id) else { continue }
++            seen.insert(id)
++            
++            if isStoreCacheEntryStale(cache[id]) {
++                pending.append(id)
++            } else {
++                let cachedMinOS = cachedStoreMinimumOS(cache[id])
++                if !cachedMinOS.isEmpty {
++                    DispatchQueue.main.async {
++                        self.storeMinimumOS[id] = cachedMinOS
++                    }
++                }
++            }
++        }
++        
++        // Ayni anda calisan cagrilar ayni kimligi ikinci kez sorgulamasin.
++        let idsToFetch = pending.filter { !self.storeLookupsInFlight.contains($0) }
++        guard !idsToFetch.isEmpty else { return }
++        self.storeLookupsInFlight.formUnion(idsToFetch)
++        
++        let region: String
++        if #available(iOS 16.0, *) {
++            region = Locale.current.region?.identifier ?? "US"
++        } else {
++            region = Locale.current.regionCode ?? "US"
++        }
++        
++        // Apple lookup ucnoktasi tek istekte sinirli sayida kimlik kabul ediyor: 20'lik parcalar.
++        for chunkStart in stride(from: 0, to: idsToFetch.count, by: 20) {
++            let chunk = Array(idsToFetch[chunkStart..<min(chunkStart + 20, idsToFetch.count)])
++            let bundleIdParameter = chunk.joined(separator: ",")
++            
++            guard let url = URL(string: "https://itunes.apple.com/lookup?bundleId=\(bundleIdParameter)&country=\(region.lowercased())&entity=software") else {
++                self.storeLookupsInFlight.subtract(chunk)
++                continue
++            }
++            
++            URLSession.shared.dataTask(with: url) { data, _, error in
++                guard error == nil, let data = data,
++                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
++                      let results = json["results"] as? [[String: Any]] else {
++                    // Ag/ayristirma hatasi: onbellege yazma, sonraki denemede tekrar sor.
++                    DispatchQueue.main.async {
++                        self.storeLookupsInFlight.subtract(chunk)
++                    }
++                    return
++                }
++                
++                var found: [String: String] = [:]
++                for result in results {
++                    if let bundleID = result["bundleId"] as? String,
++                       let minimumOSVersion = result["minimumOsVersion"] as? String {
++                        found[bundleID] = minimumOSVersion
++                    }
++                }
++                
++                DispatchQueue.main.async {
++                    var updatedCache = self.loadStoreCache()
++                    let epoch = Int(Date().timeIntervalSince1970)
++                    
++                    for bundleID in chunk {
++                        let minimumOSVersion = found[bundleID] ?? ""
++                        updatedCache[bundleID] = "\(minimumOSVersion)|\(epoch)"
++                        
++                        if !minimumOSVersion.isEmpty {
++                            self.storeMinimumOS[bundleID] = minimumOSVersion
++                        }
++                    }
++                    
++                    self.saveStoreCache(updatedCache)
++                    self.storeLookupsInFlight.subtract(chunk)
++                }
++            }.resume()
++        }
++    }
++    
++    // UserDefaults'taki "minOS|epoch" bicimli onbellegi okur.
++    private func loadStoreCache() -> [String: String] {
++        return UserDefaults.standard.dictionary(forKey: storeCacheKey) as? [String: String] ?? [:]
++    }
++    
++    private func saveStoreCache(_ cache: [String: String]) {
++        UserDefaults.standard.set(cache, forKey: storeCacheKey)
++    }
++    
++    // Onbellek kaydindan minimum iOS surumunu cikarir (bos dize: App Store'da yok).
++    private func cachedStoreMinimumOS(_ entry: String?) -> String {
++        guard let entry = entry else { return "" }
++        return entry.components(separatedBy: "|").first ?? ""
++    }
++    
++    // Kaydin yasi TTL'i gectiyse (veya kayit bozuksa) tazeleme gerekir.
++    private func isStoreCacheEntryStale(_ entry: String?) -> Bool {
++        guard let entry = entry,
++              let epochString = entry.components(separatedBy: "|").dropFirst().first,
++              let epoch = Double(epochString) else { return true }
++        return Date().timeIntervalSince1970 - epoch > storeCacheTTL
++    }
++    
+     func addRepo(_ repoURL: String, alertManager: AlertManager, completion: @escaping () -> Void) {
+         let dispatchGroup = DispatchGroup()
+         
+diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
+index 128d738..2317ed6 100644
+--- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
++++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
+@@ -13,6 +13,11 @@
+ "APPS" = "Apps";
+ "SETTINGS" = "Settings";
+ 
++// Browse list sections
++"UPDATES" = "Updates";
++"ALL_APPS" = "All Apps";
++"NO_UPDATES" = "No updates available";
++
+ // Buttons
+ "OPEN" = "OPEN";
+ "GET" = "GET";
+@@ -149,3 +154,10 @@
+ "ERROR_REMOVING_EXISTING_IPA_FILE" = "Failed to remove IPA file from previous installation.";
+ 
+ "ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "Failed to download / write IPA file";
++"IOS_VERSION_TOO_LOW" = "Needs a newer iOS version";
++
++"HIDE_APP" = "Hide";
++"UNHIDE_APP" = "Show again";
++"HIDDEN_APPS" = "Hidden apps";
++"NO_HIDDEN_APPS" = "No hidden apps";
++"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. An app reappears automatically when a compatible version is published.";
+diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
+new file mode 100644
+index 0000000..125201f
+--- /dev/null
++++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
+@@ -0,0 +1,170 @@
++/* 
++  Localizable.strings
++  TrollApps
++
++  Created by Cleopatra on 2023-12-11.
++  
++*/
++
++// Bottom Bar
++"FEATURED" = "Öne Çıkanlar";
++"REPOS" = "Kaynaklar";
++"BROWSE" = "Gözat";
++"APPS" = "Uygulamalar";
++"SETTINGS" = "Ayarlar";
++
++// Browse list sections
++"UPDATES" = "Güncellemeler";
++"ALL_APPS" = "Tüm Uygulamalar";
++"NO_UPDATES" = "Güncelleme yok";
++
++// Buttons
++"OPEN" = "AÇ";
++"GET" = "İNDİR";
++"UPDATE" = "GÜNCELLE";
++"OLDER" = "DAHA ESKİ";
++
++// Repos Menu
++"BROKEN_REPOS" = "Bozuk Kaynaklar";
++"BROKEN_SOURCES" = "Bozuk Kaynaklar";
++"EXPORT" = "Dışa Aktar";
++"DELETE" = "Sil";
++
++"UNNAMED_REPO" = "Adsız Kaynak";
++"COPY_REPO_URL" = "Kaynak URL'sini Kopyala";
++"COPY_REPO_BASE_URL" = "Kaynak[] URL'sini Kopyala";
++"COPY_SOURCE_URL" = "Kaynak URL'sini Kopyala";
++"DELETE_REPO" = "Kaynağı Sil";
++
++"UNABLE_TO_LOAD_REPO" = "Kaynak yüklenemedi";
++
++// Add Repo Menu
++"ADD_REPOS" = "Kaynak Ekle";
++"REPO_URL" = "Kaynak URL";
++"ADD_REPOS_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
++"ADD_REPO_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
++"ADD_REPO_FROM_CLIPBOARD" = "Panodan kaynak ekle";
++
++// Apps Detailed View
++"WHATS_NEW" = "Yenilikler";
++"VERSION %@" = "Sürüm %@";
++"UNKNOWN_VERSION" = "Bilinmeyen Sürüm";
++"UNKNOWN_DEVELOPER" = "Bilinmeyen Geliştirici";
++
++"SELECT_VERSION" = "Sürüm Seç";
++
++// Browse View
++"SEARCH" = "Ara";
++
++// Apps View
++"INSTALLED_APPS" = "Yüklü Uygulamalar";
++"UNINSTALLED_APP %@" = "%@ kaldırıldı";
++"UNINSTALL_APP" = "Uygulamayı Kaldır";
++
++// Settings View
++"OPTIONS" = "Seçenekler";
++"CLEAR_IMAGE_CACHE" = "Görsel Önbelleğini Temizle";
++"DELETE_CACHE" = "Önbelleği Sil";
++"RESET_REPOS" = "Kaynakları Sıfırla";
++"RELOAD_SPRINGBOARD" = "Springboard'u Yeniden Yükle";
++"CLEAR_CACHE_TOOLTIP" = "Uygulama önbelleğini temizlemek performansı artırabilir ve TrollApps'in kullandığı depolama alanını azaltabilir.";
++"Clear_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++"CLEAR_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++"DELETE_CACHE_TOOLTIP" = "\"Önbelleği Sil\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
++
++"APP_SETTINGS" = "Uygulama Ayarları";
++"REDUCED_MOTION" = "Hareketi Azalt";
++"COMPACT_REPO_VIEW" = "Kompakt Kaynak Görünümü";
++"ADD_REPO_KEYBOARD_TYPE" = "Kaynak Ekleme Klavye Türü";
++"CURRENT_BLUR_STRENGTH %@" = "Arka Plan Bulanıklık Gücü: %@";
++
++"APP_LANGUAGE" = "Uygulama Dili";
++"LANG_SWITCHED" = "Dil Değiştirildi";
++"PLEASE_RESTART_THIS_APP_FOR_THIS_TO_TAKE_EFFECT" = "Bunun düzgün şekilde etkili olması için lütfen uygulamayı kapatıp yeniden açın.";
++
++"DEVELOPERS" = "Geliştiriciler";
++
++"THANKS_TO" = "Teşekkürler...";
++"THANKS_TO_TOOLTIP" = "Bu harika uygulamalara, makalelere ve kişilere en büyük teşekkürler! Onlar olmasaydı bu proje mümkün olmaz, hatta var olamazdı!";
++
++"TRANSLATORS" = "Çevirmenler";
++"THANKS_TO_TRANSLATORS" = "TrollApps'in yerelleştirilmesine yardımcı olan çevirmenlerimize çok teşekkürler!";
++
++"OTHER_PROJECTS_AND_LICENSES" = "Kullanılan diğer projeler ve lisansları";
++
++"HELP_THE_PROJECT" = "Projeye Yardımcı Olun";
++"JOIN_OUR_DISCORD" = "Discord'umuza katılın";
++"REPORT_A_BUG" = "Hata Bildir!";
++"JSON_TEMPLATE" = "Kendi kaynağınızı oluşturmak için JSON şablonu!";
++
++// Alerts
++"ALERT" = "Uyarı";
++"OK" = "Tamam";
++"CANCEL" = "İptal";
++"YES" = "Evet";
++
++"SUCCESS" = "Başarılı!";
++"THE_APP_WILL_NOW_QUIT" = "Uygulama şimdi kapanacak...";
++
++"CLEARING_CACHE" = "Önbellek Temizleniyor";
++"CLEARING_IMAGE_CACHE" = "Görsel Önbelleği Temizleniyor";
++"RESETING_REPOS" = "Kaynaklar Sıfırlanıyor";
++"RELOADING_SPRINGBOARD" = "Springboard Yeniden Yükleniyor";
++"PLEASE_WAIT" = "Lütfen Bekleyin";
++
++"COPIED_REPOS_TO_CLIPBOARD" = "Kaynak(lar) panoya kopyalandı";
++
++"DUPLICATE_REPO" = "Yinelenen Kaynak";
++"ALREADY_ON_REPO_LIST" = "Bu kaynağı zaten kaynak listenize eklediniz.";
++
++"ADDING_REPO" = "Kaynak Ekleniyor";
++
++"UNKNOWN_ERROR_WHILE_INSTALLING" = "Bu uygulama yüklenirken bilinmeyen bir hata oluştu.";
++"PLEASE_RETRY_LATER" = "Lütfen bu yüklemeyi başka bir zaman tekrar deneyin.";
++
++"FAILED_TO_DOWNLOAD_OR_PARSE_APP" = "Uygulama indirilemedi ve ayrıştırılamadı.";
++"THIS_COULD_BE_MISSING_PERMS_OR_BROKEN_LINK" = "Bunun nedeni eksik izinler veya bozuk bir indirme bağlantısı olabilir.";
++
++"FAILED_TO_FETCH_APP_DOWNLOAD_URL" = "Uygulama indirme URL'si alınamadı.";
++"LIKELY_REPO_ISSUE" = "Muhtemelen bir kaynak sorunu.";
++
++"UNABLE_TO_UPDATE" = "Güncellenemiyor.";
++"NOT_TROLLSTORE_MANAGED" = "Bu uygulama başlangıçta TrollStore üzerinden yüklenmediği için bu güncelleme yüklenemez. Uygulamayı kaldırıp TrollApps üzerinden yeniden yüklemeyi düşünün.";
++
++"UNABLE_TO_START_INSTALL" = "Uygulama yüklemesi başlatılamıyor.";
++"PLEASE_WAIT_FOR_CURRENT_INSTALL_TO_FINISH" = "Lütfen mevcut yüklemenin tamamlanmasını bekleyin.";
++
++"TROLLAPPS_WILL_CLOSE" = "TrollApps kapanacak ve güncelleme işlemini tamamlamak için TrollStore'a yönlendirileceksiniz.";
++"DO_YOU_STILL_WISH_TO_UPDATE" = "TrollApps'i yine de güncellemek istiyor musunuz?";
++
++"ERROR_DECODING_BASE64_STRING" = "Base64 dizesi çözümlenirken hata oluştu.";
++"PLEASE_VERIFY_VALID_REPO_STRING" = "Lütfen bunun geçerli bir kaynak[] dizesi olduğunu doğrulayın.";
++
++// Install / Uninstall / Download Errors
++"FAILED_TO_INSTALL" = "Yükleme Başarısız";
++"INSTALLATION_RETURNED_ERROR %@" = "Yükleme hata döndürdü: %@";
++
++"ERROR_REMOVING_IPA_FILE_AFTER_INSTALL" = "Yüklemeden sonra IPA dosyası kaldırılırken hata oluştu";
++"LIKELY_A_PERMS_ISSUE" = "Bu muhtemelen bir izin sorunudur.";
++
++"MISSING_DOWNLOADED_IPA" = "İndirilen IPA artık indirme konumunda değil.";
++
++"TROLLSTORE_NOT_FOUND" = "TrollStore bulunamadı";
++"TROLLSTORE_IS_REQUIRED" = "TrollApps'in çalışması için TrollStore gereklidir.";
++
++"FAILED_TO_UNINSTALL" = "Kaldırma başarısız";
++"UNINSTALLATION_RETURNED_ERROR %@" = "Kaldırma hata döndürdü: %@";
++
++"INVALID_DOWNLOAD_URL" = "İndirme URL'si geçersiz";
++"LIKELY_A_REPO_ISSUE" = "Bu muhtemelen bu kaynakla ilgili bir sorun.";
++
++"ERROR_REMOVING_EXISTING_IPA_FILE" = "Önceki yüklemeden kalan IPA dosyası kaldırılamadı.";
++
++"ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "IPA dosyası indirilemedi / yazılamadı";
++"IOS_VERSION_TOO_LOW" = "Daha yeni bir iOS sürümü gerekiyor";
++
++"HIDE_APP" = "Gizle";
++"UNHIDE_APP" = "Tekrar göster";
++"HIDDEN_APPS" = "Gizlenen uygulamalar";
++"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
++"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Uyumlu bir sürüm yayınlanınca uygulama otomatik geri gelir.";
+\ No newline at end of file
+diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
+index 5a4ce1f..324ef07 100644
+--- a/TrollApps/TrollApps/Views/BrowseView.swift
++++ b/TrollApps/TrollApps/Views/BrowseView.swift
+@@ -11,13 +11,86 @@ struct AppListView: View {
+     var apps: [Application]
+     var showFullMode: Bool
+ 
++    @EnvironmentObject var repoManager: RepositoryManager
++
+     var body: some View {
+-        List(apps.sorted { $0.name < $1.name }, id: \.self) { app in
+-            AppCell(app: app, showFullMode: showFullMode)
+-                .listRowInsets(EdgeInsets())
++        List {
++            Section(header: Text("UPDATES")) {
++                if updates.isEmpty {
++                    Text("NO_UPDATES")
++                        .font(.caption)
++                        .foregroundColor(.gray)
++                } else {
++                    ForEach(updates, id: \.self) { app in
++                        AppCell(app: app, showFullMode: showFullMode)
++                            .listRowInsets(EdgeInsets())
++                    }
++                }
++            }
++
++            Section(header: Text("ALL_APPS")) {
++                ForEach(others, id: \.self) { app in
++                    AppCell(app: app, showFullMode: showFullMode)
++                        .listRowInsets(EdgeInsets())
++                }
++            }
+         }
+         .listStyle(PlainListStyle())
+     }
++
++    /// Guncellemesi olan uygulamalar, isme gore A-Z.
++    private var updates: [Application] {
++        apps.filter(isUpdateAvailable).sorted { $0.name < $1.name }
++    }
++
++    /// Kalan uygulamalar, isme gore A-Z (onceki davranis). Kullanicinin gizledigi
++    /// uygulamalar listelenmez; repodaki en yeni surum dizesi degisince kayit
++    /// otomatik gecersiz olur ve uygulama geri gelir.
++    private var others: [Application] {
++        apps.filter { !isUpdateAvailable($0) && !isHiddenByUser($0) }.sorted { $0.name < $1.name }
++    }
++
++    /// Kullanicinin gizledigi uygulama mi? Gizleme, kullanicinin sectigi uygulamayi
++    /// tamamen listeden kaldirir; yeni bir repo surumu gelince otomatik geri gelir.
++    private func isHiddenByUser(_ app: Application) -> Bool {
++        let newestVersion = app.versions?.first?.version ?? app.version ?? ""
++        return isAppHidden(app.bundleIdentifier, newestVersion: newestVersion)
++    }
++
++    /// Kurulu surumden daha yeni, cihazin iOS surumuyle uyumlu bir surum repoda varsa true.
++    private func isUpdateAvailable(_ app: Application) -> Bool {
++        guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
++              repoManager.IsAppInstalled(bundleId) else { return false }
++
++        let latestVersion: String
++        if let versions = app.versions, !versions.isEmpty {
++            // En yeni surum cihazin iOS surumuyle uyumlu degilse, o uygulama Updates'e girmez.
++            guard let compatibleIndex = compatibleVersionIndex(versions, appMinOSVersion: app.minOSVersion, appMaxOSVersion: app.maxOSVersion) else { return false }
++
++            // Repo o surum icin sinir bildiriyorsa (ya da uyumlu daha eski bir surume dusulduyse)
++            // repo verisi kesindir; App Store degeri o zaman guncellemeyi gizlemez.
++            if shouldCheckStoreCompatibility(for: versions[compatibleIndex], in: versions, selectedIndex: compatibleIndex, appMinOSVersion: app.minOSVersion, appMaxOSVersion: app.maxOSVersion),
++               isStoreVersionIncompatible(bundleId) {
++                return false
++            }
++
++            latestVersion = versions[compatibleIndex].version
++        } else {
++            // Surum listesi yoksa (bazi repolarda olmuyor) eski davranisa dus: asla gizleme.
++            if isStoreVersionIncompatible(bundleId) { return false }
++            latestVersion = app.version ?? ""
++        }
++
++        guard !latestVersion.isEmpty else { return false }
++
++        return repoManager.showUpdateButton(version1: latestVersion, BundleID: bundleId) == 1
++    }
++
++    /// App Store'un bildirdigi minimum iOS surumu cihaza uymuyorsa true.
++    private func isStoreVersionIncompatible(_ bundleId: String) -> Bool {
++        guard let storeMinOS = repoManager.storeMinimumOS[bundleId], !storeMinOS.isEmpty else { return false }
++        return !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
++    }
+ }
+ 
+ struct BrowseView: View {
+@@ -49,15 +122,24 @@ struct BrowseView: View {
+                 }
+             }
+             .onAppear {
+-                apps = repoManager.ReposData.flatMap { $0.data.apps }
++                loadApps()
+             }
+             .onChange(of: repoManager.hasFinishedFetchingRepos) { _ in
+-                apps = repoManager.ReposData.flatMap { $0.data.apps }
++                loadApps()
+             }
+         }
+         .navigationViewStyle(.stack)
+     }
+ 
++    // Repolardaki uygulamalari yukler ve kurulu olanlar icin App Store iOS sinirini tazeler.
++    private func loadApps() {
++        let loadedApps = repoManager.ReposData.flatMap { $0.data.apps }
++        apps = loadedApps
++
++        let bundleIDs = loadedApps.compactMap { $0.bundleIdentifier }.filter { repoManager.IsAppInstalled($0) }
++        repoManager.refreshStoreMinimumOS(for: bundleIDs)
++    }
++
+     var filteredApps: [Application] {
+         if searchText.isEmpty {
+             return apps
+diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
+index 9419ce7..35579d6 100644
+--- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
++++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
+@@ -13,7 +13,11 @@ struct AppCell: View {
+     let showFullMode: Bool
+     
+     var body: some View {
+-        let version = (app.versions?[0].version != nil && app.versions?[0].version != "" ? (app.versions?[0].version ?? "") : "")
++        let compatibleIndex = compatibleVersionIndex(app.versions, appMinOSVersion: app.minOSVersion, appMaxOSVersion: app.maxOSVersion)
++        // Gosterilecek surum: uyumlu surum varsa o, yoksa (bos/nil liste guvenli) 0.
++        let displayIndex = compatibleIndex ?? 0
++        let hasDisplayVersion = app.versions?.indices.contains(displayIndex) ?? false
++        let version = (hasDisplayVersion ? (app.versions?[displayIndex].version ?? "") : "")
+         let devName = (app.developerName != nil && app.developerName != "" ? (app.developerName ?? "") : "")
+         
+         VStack(alignment: .leading) {
+@@ -43,7 +47,7 @@ struct AppCell: View {
+                         .foregroundColor(.gray)
+                 }
+                 Spacer()
+-                DynamicInstallButton(appDetails: app, selectedVersionIndex: 0, buttonStyle: "Main")
++                DynamicInstallButton(appDetails: app, selectedVersionIndex: compatibleIndex ?? 0, buttonStyle: "Main")
+             }
+             
+             if showFullMode {
+@@ -66,6 +70,16 @@ struct AppCell: View {
+         }
+         .frame(maxWidth: .infinity, alignment: .leading)
+         .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
++        .contextMenu {
++            Button(role: .destructive) {
++                // Gizleme kaydi repodaki en yeni surum dizesine baglanir; yeni bir
++                // surum yayimlaninca uygulama otomatik olarak geri gelir.
++                let newestVersion = app.versions?.first?.version ?? app.version ?? ""
++                hideApp(bundleId: app.bundleIdentifier, name: app.name, newestVersion: newestVersion)
++            } label: {
++                Label("HIDE_APP", systemImage: "eye.slash")
++            }
++        }
+         .background(
+             NavigationLink("", destination: AppDetailsView(appDetails: app))
+                 .opacity(0)
+diff --git a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
+index bab8c6c..8c530f6 100644
+--- a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
++++ b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
+@@ -174,6 +174,10 @@ struct AppDetailsView: View {
+             .padding(.bottom, 20)
+         }
+         .navigationBarTitle("", displayMode: .inline)
++        .onAppear {
++            // En yeni surum cihazin iOS surumuyle uyumlu degilse uyumlu olani sec.
++            selectedVersionIndex = compatibleVersionIndex(appDetails.versions, appMinOSVersion: appDetails.minOSVersion, appMaxOSVersion: appDetails.maxOSVersion) ?? 0
++        }
+         
+         var backgroundFillColor: Color {
+             if let customTintColor = appDetails.tintColor, !customTintColor.isEmpty {
+diff --git a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
+index af671c8..72c1d66 100644
+--- a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
++++ b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
+@@ -18,6 +18,9 @@ struct SettingsView: View {
+     
+     @StateObject private var cacheSize = ImageCacheViewModel()
+ 
++    // Kullanicinin gizledigi uygulamalar; key = bundleId, value = [ad, en yeni surum, epoch].
++    @State private var hiddenApps: [String: [String]] = [:]
++
+     var body: some View {
+         VStack {
+             Form {
+@@ -156,7 +159,8 @@ struct SettingsView: View {
+                       "Deutsch",
+                       "Bahasa Indonesia",
+                       "العربية",
+-                      "Norsk bokmål"
++                      "Norsk bokmål",
++                      "Türkçe"
+                     ];
+                     
+                     let langOptions = [
+@@ -166,7 +170,8 @@ struct SettingsView: View {
+                         "de",
+                         "id",
+                         "ar",
+-                        "nb"
++                        "nb",
++                        "tr"
+                     ];
+ 
+                     Picker("APP_LANGUAGE", selection: $userSettings.lang) {
+@@ -184,6 +189,39 @@ struct SettingsView: View {
+                     .pickerStyle(.menu)
+                 }
+                 
++                // Kullanicinin gizledigi uygulamalar; bir satira dokunmak kaydi kaldirir.
++                Section(header: Text("HIDDEN_APPS"), footer: Text("HIDDEN_APPS_TOOLTIP")) {
++                    if hiddenApps.isEmpty {
++                        Text("NO_HIDDEN_APPS")
++                            .font(.caption)
++                            .foregroundColor(.gray)
++                    } else {
++                        ForEach(hiddenApps.keys.sorted { (hiddenApps[$0]?.first ?? "") < (hiddenApps[$1]?.first ?? "") }, id: \.self) { bundleId in
++                            let entry = hiddenApps[bundleId] ?? []
++                            Button(action: {
++                                unhideApp(bundleId)
++                                hiddenApps = hiddenAppsDictionary()
++                            }) {
++                                HStack {
++                                    VStack(alignment: .leading) {
++                                        Text(entry.first ?? bundleId)
++                                        Text(bundleId)
++                                            .font(.caption)
++                                            .foregroundColor(.gray)
++                                    }
++                                    Spacer()
++                                    Text("UNHIDE_APP")
++                                        .font(.caption)
++                                }
++                            }
++                            .buttonStyle(.plain)
++                        }
++                    }
++                }
++                .onAppear {
++                    hiddenApps = hiddenAppsDictionary()
++                }
++
+                 Section(header: Text("DEVELOPERS")) {
+                     Label {
+                         HStack {
+diff --git a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
+index c09a38e..978e861 100644
+--- a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
++++ b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
+@@ -24,32 +24,57 @@ struct DynamicInstallButton: View {
+ 
+     @ViewBuilder
+     func appButton(json: Application) -> some View {
+-        if repoManager.IsAppInstalled(json.bundleIdentifier ?? "") {
+-            if let version = appDetails.versions?[selectedVersionIndex].version {
+-                let status = repoManager.showUpdateButton(version1: version, BundleID: json.bundleIdentifier ?? "")
+-                
+-                switch status {
+-                case 0:
+-                    openButton(bundleIdentifier: json.bundleIdentifier ?? "")
++        let versions = appDetails.versions ?? []
++        // Bos/nil surum listesinde veya gecersiz indekste subscript yapma.
++        if versions.indices.contains(selectedVersionIndex) {
++            let selectedVersion = versions[selectedVersionIndex]
++            let bounds = resolvedOSBounds(
++                for: selectedVersion,
++                in: versions,
++                appMinOSVersion: appDetails.minOSVersion,
++                appMaxOSVersion: appDetails.maxOSVersion
++            )
++            // App Store degeri yalnizca repo o surum icin hic sinir bildirmediginde ve en yeni
++            // surum seciliyken dikkate alinir (o zaman teklif verilmez; zaten guncel olan OPEN kalir).
++            let storeMinOS = repoManager.storeMinimumOS[json.bundleIdentifier ?? ""]
++            let storeIncompatible = shouldCheckStoreCompatibility(for: selectedVersion, in: versions, selectedIndex: selectedVersionIndex, appMinOSVersion: appDetails.minOSVersion, appMaxOSVersion: appDetails.maxOSVersion)
++                && !(storeMinOS ?? "").isEmpty
++                && !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
++
++            if isVersionCompatible(minOSVersion: bounds.minOSVersion, maxOSVersion: bounds.maxOSVersion) {
++                if repoManager.IsAppInstalled(json.bundleIdentifier ?? "") {
++                    let status = repoManager.showUpdateButton(version1: selectedVersion.version, BundleID: json.bundleIdentifier ?? "")
+                     
+-                case 1:
+-                    if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
++                    switch status {
++                    case 0:
++                        openButton(bundleIdentifier: json.bundleIdentifier ?? "")
++                        
++                    case 1:
++                        if storeIncompatible {
++                            olderButton()
++                        } else if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
++                            queuedButton()
++                        } else {
++                            updateButton(bundleIdentifier: json.bundleIdentifier ?? "")
++                        }
++                    case 2:
++                        olderButton()
++                        
++                    default:
++                        EmptyView()
++                    }
++                } else {
++                    if storeIncompatible {
++                        olderButton()
++                    } else if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
+                         queuedButton()
+                     } else {
+-                        updateButton(bundleIdentifier: json.bundleIdentifier ?? "")
++                        getButton()
+                     }
+-                case 2:
+-                    olderButton()
+-                    
+-                default:
+-                    EmptyView()
+                 }
+-            }
+-        } else {
+-            if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
+-                queuedButton()
+             } else {
+-                getButton()
++                // Secili surum cihazin iOS surumuyle uyumlu degil: UPDATE/GET yerine devre disi buton.
++                olderButton()
+             }
+         }
+     }
