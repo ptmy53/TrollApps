@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/build-ipa.yml'
+      - 'updates-section.patch'
 
 permissions:
   contents: write
