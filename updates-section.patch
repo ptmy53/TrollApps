@@ -27,7 +27,7 @@ index aea59ca..ca96690 100644
  			name = Localizable.strings;
  			sourceTree = "<group>";
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..6879745 100644
+index ca8ec62..da9b6b4 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,8 @@
@@ -39,7 +39,7 @@ index ca8ec62..6879745 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +37,103 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +37,141 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -142,6 +142,44 @@ index ca8ec62..6879745 100644
 +
 +    let bounds = resolvedOSBounds(for: version, in: versions, appMinOSVersion: appMinOSVersion, appMaxOSVersion: appMaxOSVersion)
 +    return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
++}
++
++// MARK: Kullanici tarafindan gizlenen uygulamalar (UserDefaults)
++// Depolama: "hiddenIncompatibleApps" anahtarindaki sozluk. Anahtar bundleId,
++// deger [ad, en yeni surum dizesi, gizleme zaman damgasi (epoch)] listesidir.
++// Kural: repodaki en yeni surum dizesi degismedikce uygulama listelerde
++// gosterilmez; yeni bir surum yayimlanirsa kayit otomatik gecersiz olur.
++
++func hiddenAppsDictionary() -> [String: [String]] {
++    return UserDefaults.standard.dictionary(forKey: "hiddenIncompatibleApps") as? [String: [String]] ?? [:]
++}
++
++private func saveHiddenAppsDictionary(_ dictionary: [String: [String]]) {
++    UserDefaults.standard.set(dictionary, forKey: "hiddenIncompatibleApps")
++}
++
++// Uygulama gizliyse ve repodaki en yeni surum dizesi yine ayniysa true doner.
++func isAppHidden(_ bundleId: String?, newestVersion: String?) -> Bool {
++    guard let bundleId = bundleId, !bundleId.isEmpty else { return false }
++    guard let entry = hiddenAppsDictionary()[bundleId], entry.count >= 2 else { return false }
++    return entry[1] == (newestVersion ?? "")
++}
++
++// Uygulamayi gizli listeye ekler; ayni bundleId icin eski kaydi gunceller.
++func hideApp(bundleId: String?, name: String, newestVersion: String) {
++    guard let bundleId = bundleId, !bundleId.isEmpty else { return }
++
++    var dictionary = hiddenAppsDictionary()
++    let epoch = String(Int(Date().timeIntervalSince1970))
++    dictionary[bundleId] = [name, newestVersion, epoch]
++    saveHiddenAppsDictionary(dictionary)
++}
++
++// Gizleme kaydini kaldirir (kayit yoksa hicbir sey yapmaz).
++func unhideApp(_ bundleId: String) {
++    var dictionary = hiddenAppsDictionary()
++    dictionary.removeValue(forKey: bundleId)
++    saveHiddenAppsDictionary(dictionary)
 +}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
 index 93e7fc1..3cd9a47 100644
@@ -365,7 +403,7 @@ index e76b617..508e5b2 100644
          let dispatchGroup = DispatchGroup()
          
 diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
-index 128d738..e7fe034 100644
+index 128d738..2317ed6 100644
 --- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 +++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 @@ -13,6 +13,11 @@
@@ -380,17 +418,23 @@ index 128d738..e7fe034 100644
  // Buttons
  "OPEN" = "OPEN";
  "GET" = "GET";
-@@ -149,3 +154,4 @@
+@@ -149,3 +154,10 @@
  "ERROR_REMOVING_EXISTING_IPA_FILE" = "Failed to remove IPA file from previous installation.";
  
  "ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "Failed to download / write IPA file";
 +"IOS_VERSION_TOO_LOW" = "Needs a newer iOS version";
++
++"HIDE_APP" = "Hide";
++"UNHIDE_APP" = "Show again";
++"HIDDEN_APPS" = "Hidden apps";
++"NO_HIDDEN_APPS" = "No hidden apps";
++"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. An app reappears automatically when a compatible version is published.";
 diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
 new file mode 100644
-index 0000000..f4dca6f
+index 0000000..125201f
 --- /dev/null
 +++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,170 @@
 +/* 
 +  Localizable.strings
 +  TrollApps
@@ -555,11 +599,18 @@ index 0000000..f4dca6f
 +
 +"ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "IPA dosyası indirilemedi / yazılamadı";
 +"IOS_VERSION_TOO_LOW" = "Daha yeni bir iOS sürümü gerekiyor";
++
++"HIDE_APP" = "Gizle";
++"UNHIDE_APP" = "Tekrar göster";
++"HIDDEN_APPS" = "Gizlenen uygulamalar";
++"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
++"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Uyumlu bir sürüm yayınlanınca uygulama otomatik geri gelir.";
+\ No newline at end of file
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..c09bb2b 100644
+index 5a4ce1f..324ef07 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
-@@ -11,13 +11,77 @@ struct AppListView: View {
+@@ -11,13 +11,86 @@ struct AppListView: View {
      var apps: [Application]
      var showFullMode: Bool
  
@@ -598,9 +649,18 @@ index 5a4ce1f..c09bb2b 100644
 +        apps.filter(isUpdateAvailable).sorted { $0.name < $1.name }
 +    }
 +
-+    /// Kalan uygulamalar, isme gore A-Z (onceki davranis).
++    /// Kalan uygulamalar, isme gore A-Z (onceki davranis). Kullanicinin gizledigi
++    /// uygulamalar listelenmez; repodaki en yeni surum dizesi degisince kayit
++    /// otomatik gecersiz olur ve uygulama geri gelir.
 +    private var others: [Application] {
-+        apps.filter { !isUpdateAvailable($0) }.sorted { $0.name < $1.name }
++        apps.filter { !isUpdateAvailable($0) && !isHiddenByUser($0) }.sorted { $0.name < $1.name }
++    }
++
++    /// Kullanicinin gizledigi uygulama mi? Gizleme, kullanicinin sectigi uygulamayi
++    /// tamamen listeden kaldirir; yeni bir repo surumu gelince otomatik geri gelir.
++    private func isHiddenByUser(_ app: Application) -> Bool {
++        let newestVersion = app.versions?.first?.version ?? app.version ?? ""
++        return isAppHidden(app.bundleIdentifier, newestVersion: newestVersion)
 +    }
 +
 +    /// Kurulu surumden daha yeni, cihazin iOS surumuyle uyumlu bir surum repoda varsa true.
@@ -640,7 +700,7 @@ index 5a4ce1f..c09bb2b 100644
  }
  
  struct BrowseView: View {
-@@ -49,15 +113,24 @@ struct BrowseView: View {
+@@ -49,15 +122,24 @@ struct BrowseView: View {
                  }
              }
              .onAppear {
@@ -668,7 +728,7 @@ index 5a4ce1f..c09bb2b 100644
          if searchText.isEmpty {
              return apps
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..747aec0 100644
+index 9419ce7..35579d6 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
 @@ -13,7 +13,11 @@ struct AppCell: View {
@@ -693,6 +753,23 @@ index 9419ce7..747aec0 100644
              }
              
              if showFullMode {
+@@ -66,6 +70,16 @@ struct AppCell: View {
+         }
+         .frame(maxWidth: .infinity, alignment: .leading)
+         .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
++        .contextMenu {
++            Button(role: .destructive) {
++                // Gizleme kaydi repodaki en yeni surum dizesine baglanir; yeni bir
++                // surum yayimlaninca uygulama otomatik olarak geri gelir.
++                let newestVersion = app.versions?.first?.version ?? app.version ?? ""
++                hideApp(bundleId: app.bundleIdentifier, name: app.name, newestVersion: newestVersion)
++            } label: {
++                Label("HIDE_APP", systemImage: "eye.slash")
++            }
++        }
+         .background(
+             NavigationLink("", destination: AppDetailsView(appDetails: app))
+                 .opacity(0)
 diff --git a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
 index bab8c6c..8c530f6 100644
 --- a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
@@ -709,10 +786,20 @@ index bab8c6c..8c530f6 100644
          var backgroundFillColor: Color {
              if let customTintColor = appDetails.tintColor, !customTintColor.isEmpty {
 diff --git a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
-index af671c8..c093a95 100644
+index af671c8..e5eeb05 100644
 --- a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
 +++ b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
-@@ -156,7 +156,8 @@ struct SettingsView: View {
+@@ -18,6 +18,9 @@ struct SettingsView: View {
+     
+     @StateObject private var cacheSize = ImageCacheViewModel()
+ 
++    // Kullanicinin gizledigi uygulamalar; key = bundleId, value = [ad, en yeni surum, epoch].
++    @State private var hiddenApps: [String: [String]] = [:]
++
+     var body: some View {
+         VStack {
+             Form {
+@@ -156,7 +159,8 @@ struct SettingsView: View {
                        "Deutsch",
                        "Bahasa Indonesia",
                        "العربية",
@@ -722,7 +809,7 @@ index af671c8..c093a95 100644
                      ];
                      
                      let langOptions = [
-@@ -166,7 +167,8 @@ struct SettingsView: View {
+@@ -166,7 +170,8 @@ struct SettingsView: View {
                          "de",
                          "id",
                          "ar",
@@ -732,6 +819,45 @@ index af671c8..c093a95 100644
                      ];
  
                      Picker("APP_LANGUAGE", selection: $userSettings.lang) {
+@@ -184,6 +189,38 @@ struct SettingsView: View {
+                     .pickerStyle(.menu)
+                 }
+                 
++                // Kullanicinin gizledigi uygulamalar; bir satira dokunmak kaydi kaldirir.
++                Section(header: Text("HIDDEN_APPS"), footer: Text("HIDDEN_APPS_TOOLTIP")) {
++                    if hiddenApps.isEmpty {
++                        Text("NO_HIDDEN_APPS")
++                            .font(.caption)
++                            .foregroundColor(.gray)
++                    } else {
++                        ForEach(hiddenApps.sorted { ($0.value.first ?? "") < ($1.value.first ?? "") }, id: \.key) { bundleId, entry in
++                            Button(action: {
++                                unhideApp(bundleId)
++                                hiddenApps = hiddenAppsDictionary()
++                            }) {
++                                HStack {
++                                    VStack(alignment: .leading) {
++                                        Text(entry.first ?? bundleId)
++                                        Text(bundleId)
++                                            .font(.caption)
++                                            .foregroundColor(.gray)
++                                    }
++                                    Spacer()
++                                    Text("UNHIDE_APP")
++                                        .font(.caption)
++                                }
++                            }
++                            .buttonStyle(.plain)
++                        }
++                    }
++                }
++                .onAppear {
++                    hiddenApps = hiddenAppsDictionary()
++                }
++
+                 Section(header: Text("DEVELOPERS")) {
+                     Label {
+                         HStack {
 diff --git a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
 index c09a38e..978e861 100644
 --- a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
