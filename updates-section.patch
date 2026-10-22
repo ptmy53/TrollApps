@@ -786,20 +786,24 @@ index bab8c6c..8c530f6 100644
          var backgroundFillColor: Color {
              if let customTintColor = appDetails.tintColor, !customTintColor.isEmpty {
 diff --git a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
-index af671c8..72c1d66 100644
+index af671c8..7248da4 100644
 --- a/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
 +++ b/TrollApps/TrollApps/Views/Subviews/SettingsView.swift
-@@ -18,6 +18,9 @@ struct SettingsView: View {
+@@ -18,6 +18,13 @@ struct SettingsView: View {
      
      @StateObject private var cacheSize = ImageCacheViewModel()
  
 +    // Kullanicinin gizledigi uygulamalar; key = bundleId, value = [ad, en yeni surum, epoch].
 +    @State private var hiddenApps: [String: [String]] = [:]
 +
++    private var hiddenAppIDs: [String] {
++        hiddenApps.keys.sorted { (hiddenApps[$0]?.first ?? "") < (hiddenApps[$1]?.first ?? "") }
++    }
++
      var body: some View {
          VStack {
              Form {
-@@ -156,7 +159,8 @@ struct SettingsView: View {
+@@ -156,7 +163,8 @@ struct SettingsView: View {
                        "Deutsch",
                        "Bahasa Indonesia",
                        "العربية",
@@ -809,7 +813,7 @@ index af671c8..72c1d66 100644
                      ];
                      
                      let langOptions = [
-@@ -166,7 +170,8 @@ struct SettingsView: View {
+@@ -166,7 +174,8 @@ struct SettingsView: View {
                          "de",
                          "id",
                          "ar",
@@ -819,7 +823,7 @@ index af671c8..72c1d66 100644
                      ];
  
                      Picker("APP_LANGUAGE", selection: $userSettings.lang) {
-@@ -184,6 +189,39 @@ struct SettingsView: View {
+@@ -184,6 +193,38 @@ struct SettingsView: View {
                      .pickerStyle(.menu)
                  }
                  
@@ -830,15 +834,14 @@ index af671c8..72c1d66 100644
 +                            .font(.caption)
 +                            .foregroundColor(.gray)
 +                    } else {
-+                        ForEach(hiddenApps.keys.sorted { (hiddenApps[$0]?.first ?? "") < (hiddenApps[$1]?.first ?? "") }, id: \.self) { bundleId in
-+                            let entry = hiddenApps[bundleId] ?? []
++                        ForEach(hiddenAppIDs, id: \.self) { bundleId in
 +                            Button(action: {
 +                                unhideApp(bundleId)
 +                                hiddenApps = hiddenAppsDictionary()
 +                            }) {
 +                                HStack {
 +                                    VStack(alignment: .leading) {
-+                                        Text(entry.first ?? bundleId)
++                                        Text(hiddenApps[bundleId]?.first ?? bundleId)
 +                                        Text(bundleId)
 +                                            .font(.caption)
 +                                            .foregroundColor(.gray)
