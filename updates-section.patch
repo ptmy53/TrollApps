@@ -696,10 +696,18 @@ index 5a4ce1f..324ef07 100644
          if searchText.isEmpty {
              return apps
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..e689de7 100644
+index 9419ce7..d4e0a89 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-@@ -13,7 +13,11 @@ struct AppCell: View {
+@@ -6,6 +6,7 @@
+ //
+ 
+ import SwiftUI
++import Foundation
+ import Kingfisher
+ 
+ struct AppCell: View {
+@@ -13,7 +14,11 @@ struct AppCell: View {
      let showFullMode: Bool
      
      var body: some View {
@@ -712,7 +720,7 @@ index 9419ce7..e689de7 100644
          let devName = (app.developerName != nil && app.developerName != "" ? (app.developerName ?? "") : "")
          
          VStack(alignment: .leading) {
-@@ -43,7 +47,7 @@ struct AppCell: View {
+@@ -43,7 +48,7 @@ struct AppCell: View {
                          .foregroundColor(.gray)
                  }
                  Spacer()
@@ -721,7 +729,7 @@ index 9419ce7..e689de7 100644
              }
              
              if showFullMode {
-@@ -66,6 +70,18 @@ struct AppCell: View {
+@@ -66,6 +71,18 @@ struct AppCell: View {
          }
          .frame(maxWidth: .infinity, alignment: .leading)
          .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
