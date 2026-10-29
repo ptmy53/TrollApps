@@ -696,7 +696,7 @@ index 5a4ce1f..324ef07 100644
          if searchText.isEmpty {
              return apps
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..d4e0a89 100644
+index 9419ce7..3ba461b 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
 @@ -6,6 +6,7 @@
@@ -729,19 +729,21 @@ index 9419ce7..d4e0a89 100644
              }
              
              if showFullMode {
-@@ -66,6 +71,18 @@ struct AppCell: View {
+@@ -66,6 +71,20 @@ struct AppCell: View {
          }
          .frame(maxWidth: .infinity, alignment: .leading)
          .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
 +        .contextMenu {
-+            Button(role: .destructive) {
++            // Not: Button(role:) iOS 15+ oldugu icin (deployment target 14.0)
++            // rol kullanilmiyor; menu ogesi sade Button olarak ekleniyor.
++            Button(action: {
 +                // Gizleme kaydi repodaki en yeni surum dizesine baglanir; yeni bir
 +                // surum yayimlaninca uygulama otomatik olarak geri gelir.
 +                let newestVersion = app.versions?.first?.version ?? app.version ?? ""
 +                if let bundleId = app.bundleIdentifier, !bundleId.isEmpty {
 +                    UserDefaults.standard.set(newestVersion, forKey: "hiddenApp." + bundleId)
 +                }
-+            } label: {
++            }) {
 +                Label("HIDE_APP", systemImage: "eye.slash")
 +            }
 +        }
