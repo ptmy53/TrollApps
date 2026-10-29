@@ -27,19 +27,20 @@ index aea59ca..ca96690 100644
  			name = Localizable.strings;
  			sourceTree = "<group>";
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..156473f 100644
+index ca8ec62..72da5a9 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
-@@ -5,6 +5,8 @@
+@@ -5,6 +5,9 @@
  //  Created by Cleopatra on 2023-12-15.
  //
  
 +import Foundation
++import Combine
 +
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +37,109 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +38,146 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -144,10 +145,47 @@ index ca8ec62..156473f 100644
 +    return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
 +}
 +
-+// Uygulama gizliyse ve repodaki en yeni surum dizesi yine ayniysa true doner.
-+func isAppHidden(_ bundleId: String?, newestVersion: String?) -> Bool {
-+    guard let bundleId = bundleId, !bundleId.isEmpty else { return false }
-+    return UserDefaults.standard.string(forKey: "hiddenApp." + bundleId) == (newestVersion ?? "")
++// MARK: - Gizlenen uygulamalar (isim bazli)
++// Ayni isme sahip TUM uygulamalar birlikte gizlenir. Kayitlar UserDefaults'ta
++// "hiddenAppNames" anahtarinda bir dizi olarak tutulur. Sinif ObservableObject
++// oldugu icin gizleme/geri alma aninda listeyi yeniler (onceden UserDefaults'a
++// yazmak gorunumu tetiklemiyordu, bu yuzden Gizle calismiyor gibi gorunuyordu).
++final class HiddenAppsManager: ObservableObject {
++    static let shared = HiddenAppsManager()
++
++    private static let storageKey = "hiddenAppNames"
++
++    @Published private(set) var names: [String]
++
++    private init() {
++        names = UserDefaults.standard.stringArray(forKey: HiddenAppsManager.storageKey) ?? []
++    }
++
++    func isHidden(_ name: String) -> Bool {
++        return names.contains(name)
++    }
++
++    func hide(name: String) {
++        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
++        guard !trimmed.isEmpty, !names.contains(trimmed) else { return }
++        names.append(trimmed)
++        persist()
++    }
++
++    func unhide(name: String) {
++        names.removeAll { $0 == name }
++        persist()
++    }
++
++    func unhideAll() {
++        guard !names.isEmpty else { return }
++        names.removeAll()
++        persist()
++    }
++
++    private func persist() {
++        UserDefaults.standard.set(names, forKey: HiddenAppsManager.storageKey)
++    }
 +}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
 index 93e7fc1..3cd9a47 100644
@@ -575,14 +613,18 @@ index 0000000..125201f
 +"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Uyumlu bir sürüm yayınlanınca uygulama otomatik geri gelir.";
 \ No newline at end of file
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..324ef07 100644
+index 5a4ce1f..2ca7a25 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
-@@ -11,13 +11,86 @@ struct AppListView: View {
+@@ -11,12 +11,93 @@ struct AppListView: View {
      var apps: [Application]
      var showFullMode: Bool
  
 +    @EnvironmentObject var repoManager: RepositoryManager
++
++    // Gizleme kayitlari degisince liste aninda yenilensin.
++    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
++    @State private var showHiddenApps = false
 +
      var body: some View {
 -        List(apps.sorted { $0.name < $1.name }, id: \.self) { app in
@@ -610,25 +652,29 @@ index 5a4ce1f..324ef07 100644
 +            }
          }
          .listStyle(PlainListStyle())
-     }
++        .toolbar {
++            ToolbarItem(placement: .navigationBarTrailing) {
++                Button(action: {
++                    showHiddenApps = true
++                }) {
++                    Image(systemName: "eye.slash")
++                }
++            }
++        }
++        .sheet(isPresented: $showHiddenApps) {
++            HiddenAppsView()
++        }
++    }
 +
-+    /// Guncellemesi olan uygulamalar, isme gore A-Z.
++    /// Guncellemesi olan uygulamalar, isme gore A-Z. Gizlenen isimler her iki
++    /// bolumde de gorunmez.
 +    private var updates: [Application] {
-+        apps.filter(isUpdateAvailable).sorted { $0.name < $1.name }
++        apps.filter { !hiddenApps.isHidden($0.name) && isUpdateAvailable($0) }.sorted { $0.name < $1.name }
 +    }
 +
-+    /// Kalan uygulamalar, isme gore A-Z (onceki davranis). Kullanicinin gizledigi
-+    /// uygulamalar listelenmez; repodaki en yeni surum dizesi degisince kayit
-+    /// otomatik gecersiz olur ve uygulama geri gelir.
++    /// Kalan uygulamalar, isme gore A-Z; gizlenen isimler listeden cikarilir.
 +    private var others: [Application] {
-+        apps.filter { !isUpdateAvailable($0) && !isHiddenByUser($0) }.sorted { $0.name < $1.name }
-+    }
-+
-+    /// Kullanicinin gizledigi uygulama mi? Gizleme, kullanicinin sectigi uygulamayi
-+    /// tamamen listeden kaldirir; yeni bir repo surumu gelince otomatik geri gelir.
-+    private func isHiddenByUser(_ app: Application) -> Bool {
-+        let newestVersion = app.versions?.first?.version ?? app.version ?? ""
-+        return isAppHidden(app.bundleIdentifier, newestVersion: newestVersion)
++        apps.filter { !hiddenApps.isHidden($0.name) && !isUpdateAvailable($0) }.sorted { $0.name < $1.name }
 +    }
 +
 +    /// Kurulu surumden daha yeni, cihazin iOS surumuyle uyumlu bir surum repoda varsa true.
@@ -664,11 +710,10 @@ index 5a4ce1f..324ef07 100644
 +    private func isStoreVersionIncompatible(_ bundleId: String) -> Bool {
 +        guard let storeMinOS = repoManager.storeMinimumOS[bundleId], !storeMinOS.isEmpty else { return false }
 +        return !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
-+    }
+     }
  }
  
- struct BrowseView: View {
-@@ -49,15 +122,24 @@ struct BrowseView: View {
+@@ -49,15 +130,24 @@ struct BrowseView: View {
                  }
              }
              .onAppear {
@@ -695,8 +740,60 @@ index 5a4ce1f..324ef07 100644
      var filteredApps: [Application] {
          if searchText.isEmpty {
              return apps
+@@ -68,3 +158,51 @@ struct BrowseView: View {
+         }
+     }
+ }
++
++// Gizlenen isimleri listeler. Bir satira dokunmak o isimdeki TUM uygulamalari
++// geri getirir; boylece ayni isimli kopyalar tek tek ugrasmadan acilir.
++struct HiddenAppsView: View {
++    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
++    @Environment(\.presentationMode) private var presentationMode
++
++    var body: some View {
++        NavigationView {
++            List {
++                if hiddenApps.names.isEmpty {
++                    Text("NO_HIDDEN_APPS")
++                        .font(.caption)
++                        .foregroundColor(.gray)
++                } else {
++                    Section(footer: Text("HIDDEN_APPS_TOOLTIP")) {
++                        ForEach(hiddenApps.names, id: \.self) { name in
++                            Button(action: {
++                                hiddenApps.unhide(name: name)
++                            }) {
++                                HStack {
++                                    Text(name)
++                                    Spacer()
++                                    Text("UNHIDE_APP")
++                                        .font(.caption)
++                                        .foregroundColor(.accentColor)
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++            .listStyle(PlainListStyle())
++            .navigationTitle("HIDDEN_APPS")
++            .navigationBarTitleDisplayMode(.inline)
++            .toolbar {
++                ToolbarItem(placement: .navigationBarTrailing) {
++                    Button(action: {
++                        presentationMode.wrappedValue.dismiss()
++                    }) {
++                        Image(systemName: "xmark")
++                    }
++                }
++            }
++        }
++        .navigationViewStyle(.stack)
++    }
++}
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..3ba461b 100644
+index 9419ce7..b4c6e27 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
 @@ -6,6 +6,7 @@
@@ -729,7 +826,7 @@ index 9419ce7..3ba461b 100644
              }
              
              if showFullMode {
-@@ -66,6 +71,20 @@ struct AppCell: View {
+@@ -66,6 +71,18 @@ struct AppCell: View {
          }
          .frame(maxWidth: .infinity, alignment: .leading)
          .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
@@ -737,12 +834,10 @@ index 9419ce7..3ba461b 100644
 +            // Not: Button(role:) iOS 15+ oldugu icin (deployment target 14.0)
 +            // rol kullanilmiyor; menu ogesi sade Button olarak ekleniyor.
 +            Button(action: {
-+                // Gizleme kaydi repodaki en yeni surum dizesine baglanir; yeni bir
-+                // surum yayimlaninca uygulama otomatik olarak geri gelir.
-+                let newestVersion = app.versions?.first?.version ?? app.version ?? ""
-+                if let bundleId = app.bundleIdentifier, !bundleId.isEmpty {
-+                    UserDefaults.standard.set(newestVersion, forKey: "hiddenApp." + bundleId)
-+                }
++                // Isim bazli gizleme: ayni isme sahip tum uygulamalar birlikte
++                // listeden kaldirilir. Kayitlar kullanicinin actigi gizli
++                // listesinden tek tek geri alinabilir.
++                HiddenAppsManager.shared.hide(name: app.name)
 +            }) {
 +                Label("HIDE_APP", systemImage: "eye.slash")
 +            }
