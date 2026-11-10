@@ -26,6 +26,44 @@ index aea59ca..ca96690 100644
  			);
  			name = Localizable.strings;
  			sourceTree = "<group>";
+diff --git a/TrollApps/TrollApps/Assets.xcassets/AccentColor.colorset/Contents.json b/TrollApps/TrollApps/Assets.xcassets/AccentColor.colorset/Contents.json
+index eb87897..fc1c53c 100644
+--- a/TrollApps/TrollApps/Assets.xcassets/AccentColor.colorset/Contents.json
++++ b/TrollApps/TrollApps/Assets.xcassets/AccentColor.colorset/Contents.json
+@@ -1,6 +1,33 @@
+ {
+   "colors" : [
+     {
++      "color" : {
++        "color-space" : "srgb",
++        "components" : {
++          "alpha" : "1.000",
++          "blue" : "0.906",
++          "green" : "0.361",
++          "red" : "0.424"
++        }
++      },
++      "idiom" : "universal"
++    },
++    {
++      "appearances" : [
++        {
++          "appearance" : "luminosity",
++          "value" : "dark"
++        }
++      ],
++      "color" : {
++        "color-space" : "srgb",
++        "components" : {
++          "alpha" : "1.000",
++          "blue" : "1.000",
++          "green" : "0.435",
++          "red" : "0.490"
++        }
++      },
+       "idiom" : "universal"
+     }
+   ],
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
 index ca8ec62..72da5a9 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
@@ -409,7 +447,7 @@ index e76b617..508e5b2 100644
          let dispatchGroup = DispatchGroup()
          
 diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
-index 128d738..2317ed6 100644
+index 128d738..0843855 100644
 --- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 +++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 @@ -13,6 +13,11 @@
@@ -434,10 +472,10 @@ index 128d738..2317ed6 100644
 +"UNHIDE_APP" = "Show again";
 +"HIDDEN_APPS" = "Hidden apps";
 +"NO_HIDDEN_APPS" = "No hidden apps";
-+"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. An app reappears automatically when a compatible version is published.";
++"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. Hidden apps stay hidden for good; they come back only when you unhide them from this list.";
 diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
 new file mode 100644
-index 0000000..125201f
+index 0000000..eabeca9
 --- /dev/null
 +++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
 @@ -0,0 +1,170 @@
@@ -610,13 +648,13 @@ index 0000000..125201f
 +"UNHIDE_APP" = "Tekrar göster";
 +"HIDDEN_APPS" = "Gizlenen uygulamalar";
 +"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
-+"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Uyumlu bir sürüm yayınlanınca uygulama otomatik geri gelir.";
++"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
 \ No newline at end of file
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..2ca7a25 100644
+index 5a4ce1f..d2afddf 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
-@@ -11,12 +11,93 @@ struct AppListView: View {
+@@ -11,12 +11,118 @@ struct AppListView: View {
      var apps: [Application]
      var showFullMode: Bool
  
@@ -626,26 +664,36 @@ index 5a4ce1f..2ca7a25 100644
 +    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
 +    @State private var showHiddenApps = false
 +
++    // Liste bolunmesi (guncelleme / diger) her govde degerlendirmesinde yeniden
++    // hesaplanmamasi icin bellekte tutulur; yukaridaki onChange tetikleyicileri
++    // yalnizca gerektiginde yeniler.
++    @State private var updateApps: [Application] = []
++    @State private var otherApps: [Application] = []
++
      var body: some View {
 -        List(apps.sorted { $0.name < $1.name }, id: \.self) { app in
 -            AppCell(app: app, showFullMode: showFullMode)
 -                .listRowInsets(EdgeInsets())
 +        List {
-+            Section(header: Text("UPDATES")) {
-+                if updates.isEmpty {
++            Section(header: Text("UPDATES")
++                .font(.caption.bold())
++                .foregroundColor(Color("AccentColor"))) {
++                if updateApps.isEmpty {
 +                    Text("NO_UPDATES")
 +                        .font(.caption)
 +                        .foregroundColor(.gray)
 +                } else {
-+                    ForEach(updates, id: \.self) { app in
++                    ForEach(updateApps, id: \.self) { app in
 +                        AppCell(app: app, showFullMode: showFullMode)
 +                            .listRowInsets(EdgeInsets())
 +                    }
 +                }
 +            }
 +
-+            Section(header: Text("ALL_APPS")) {
-+                ForEach(others, id: \.self) { app in
++            Section(header: Text("ALL_APPS")
++                .font(.caption.bold())
++                .foregroundColor(Color("AccentColor"))) {
++                ForEach(otherApps, id: \.self) { app in
 +                    AppCell(app: app, showFullMode: showFullMode)
 +                        .listRowInsets(EdgeInsets())
 +                }
@@ -664,17 +712,32 @@ index 5a4ce1f..2ca7a25 100644
 +        .sheet(isPresented: $showHiddenApps) {
 +            HiddenAppsView()
 +        }
++        .onAppear {
++            recomputeLists(apps)
++        }
++        .onChange(of: apps) { newValue in
++            recomputeLists(newValue)
++        }
++        // Uygulama Sirasi her degistiginde (Guncelleme eklenmesi vs.) tum liste
++        // yeniden hesaplanip arayuz donuyordu; hiz icin bolunme yalnizca bu
++        // tetikleyicilerde bir kez yapilir.
++        .onChange(of: repoManager.storeMinimumOS) { _ in
++            recomputeLists(apps)
++        }
++        .onChange(of: hiddenApps.names) { _ in
++            recomputeLists(apps)
++        }
 +    }
 +
-+    /// Guncellemesi olan uygulamalar, isme gore A-Z. Gizlenen isimler her iki
-+    /// bolumde de gorunmez.
-+    private var updates: [Application] {
-+        apps.filter { !hiddenApps.isHidden($0.name) && isUpdateAvailable($0) }.sorted { $0.name < $1.name }
-+    }
-+
-+    /// Kalan uygulamalar, isme gore A-Z; gizlenen isimler listeden cikarilir.
-+    private var others: [Application] {
-+        apps.filter { !hiddenApps.isHidden($0.name) && !isUpdateAvailable($0) }.sorted { $0.name < $1.name }
++    // Guncellemesi olan ve diger uygulamalar; bir kez hesaplanir, liste
++    // degistikce ya da iOS/App Store siniri degistikce yenilenir.
++    private func recomputeLists(_ allApps: [Application]) {
++        updateApps = allApps
++            .filter { !hiddenApps.isHidden($0.name) && isUpdateAvailable($0) }
++            .sorted { $0.name < $1.name }
++        otherApps = allApps
++            .filter { !hiddenApps.isHidden($0.name) && !isUpdateAvailable($0) }
++            .sorted { $0.name < $1.name }
 +    }
 +
 +    /// Kurulu surumden daha yeni, cihazin iOS surumuyle uyumlu bir surum repoda varsa true.
@@ -713,7 +776,7 @@ index 5a4ce1f..2ca7a25 100644
      }
  }
  
-@@ -49,15 +130,24 @@ struct BrowseView: View {
+@@ -49,15 +155,24 @@ struct BrowseView: View {
                  }
              }
              .onAppear {
@@ -740,7 +803,7 @@ index 5a4ce1f..2ca7a25 100644
      var filteredApps: [Application] {
          if searchText.isEmpty {
              return apps
-@@ -68,3 +158,51 @@ struct BrowseView: View {
+@@ -68,3 +183,51 @@ struct BrowseView: View {
          }
      }
  }
@@ -845,6 +908,33 @@ index 9419ce7..b4c6e27 100644
          .background(
              NavigationLink("", destination: AppDetailsView(appDetails: app))
                  .opacity(0)
+diff --git a/TrollApps/TrollApps/Views/NavView.swift b/TrollApps/TrollApps/Views/NavView.swift
+index 88ad243..3fdce22 100644
+--- a/TrollApps/TrollApps/Views/NavView.swift
++++ b/TrollApps/TrollApps/Views/NavView.swift
+@@ -10,7 +10,9 @@ import SwiftUIIntrospect
+ 
+ struct NavView: View {
+     
+-    @State private var selectedTab = 0
++    // Uygulama acilirken "Gozat" sekmesi (;=3) acik gelir: guncellemesi olan
++    // uygulamalar hemen gorunur, "One Cikarlar" icin dokunmak yeter.
++    @State private var selectedTab = 3
+     @EnvironmentObject var alertManager: AlertManager
+     @EnvironmentObject var userSettings: UserSettings
+     @EnvironmentObject var queueManager: QueueManager
+@@ -28,7 +30,10 @@ struct NavView: View {
+             .introspect(.tabView, on: .iOS(.v14, .v15, .v16, .v17)) { tabView in
+                 tabView.tabBar.isHidden = !queueManager.canClose
+                 tabView.tabBar.isTranslucent = true
+-                
++
++                // Modern tema: sekmeler ve dugmeler AccentColor'dan (mor-mavi) alir.
++                tabView.tabBar.tintColor = UIColor(named: "AccentColor")
++
+                 let tabBarAppearance: UITabBarAppearance = UITabBarAppearance()
+                 tabBarAppearance.configureWithDefaultBackground()
+                 
 diff --git a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
 index bab8c6c..8c530f6 100644
 --- a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
