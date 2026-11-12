@@ -651,7 +651,7 @@ index 0000000..eabeca9
 +"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
 \ No newline at end of file
 diff --git a/TrollApps/TrollApps/Styles/Buttons.swift b/TrollApps/TrollApps/Styles/Buttons.swift
-index 06974a9..bb97b97 100644
+index 06974a9..f1fb4ec 100644
 --- a/TrollApps/TrollApps/Styles/Buttons.swift
 +++ b/TrollApps/TrollApps/Styles/Buttons.swift
 @@ -27,11 +27,11 @@ public struct AppStoreStyle: ButtonStyle {
@@ -691,7 +691,7 @@ index 06974a9..bb97b97 100644
 +        if type == "pink" && !dissabled {
 +            return Color.pink
 +        }
-+        return fill
++        return colors(forType: type).1
      }
  }
  
