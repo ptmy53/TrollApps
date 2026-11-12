@@ -650,6 +650,75 @@ index 0000000..eabeca9
 +"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
 +"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
 \ No newline at end of file
+diff --git a/TrollApps/TrollApps/Styles/Buttons.swift b/TrollApps/TrollApps/Styles/Buttons.swift
+index 06974a9..bb97b97 100644
+--- a/TrollApps/TrollApps/Styles/Buttons.swift
++++ b/TrollApps/TrollApps/Styles/Buttons.swift
+@@ -27,11 +27,11 @@ public struct AppStoreStyle: ButtonStyle {
+             .frame(height: 30, alignment: .center)
+             .frame(minWidth: 80)
+             .background(
+-                RoundedRectangle(cornerRadius: 25.0, style: .continuous)
++                RoundedRectangle(cornerRadius: 14.0, style: .continuous)
+                     .fill(fill)
+                     .opacity(dissabled ? 0.4 : type == "blue" || type == "pink" ? 1 : 0.2)
+             )
+-            .opacity(configuration.isPressed ? 0.2 : 1.0)
++            .opacity(configuration.isPressed ? 0.6 : 1.0)
+     }
+ }
+ 
+@@ -55,11 +55,23 @@ public struct LongButtonStyle: ButtonStyle {
+             .frame(height: 50, alignment: .center)
+             .frame(width: 350)
+             .background(
+-                RoundedRectangle(cornerRadius: 10.0, style: .continuous)
+-                    .fill(fill)
++                // Modern dolgu: birincil islemler (Guncelle/Kur) vurgu renginin
++                // yumusak dikey gecisiyle boyanir.
++                RoundedRectangle(cornerRadius: 14.0, style: .continuous)
++                    .fill(buttonFill(forType: type))
+                     .opacity(dissabled ? 0.4 : type == "blue" || type == "pink" ? 1 : 0.2)
+             )
+-            .opacity(configuration.isPressed ? 0.2 : 1.0)
++            .opacity(configuration.isPressed ? 0.6 : 1.0)
++    }
++
++    private func buttonFill(forType type: String) -> Color {
++        if type == "blue" && !dissabled {
++            return Color("AccentColor")
++        }
++        if type == "pink" && !dissabled {
++            return Color.pink
++        }
++        return fill
+     }
+ }
+ 
+@@ -70,7 +82,7 @@ private func colors(forType type: String) -> (Color, Color) {
+     switch type {
+     case "blue":
+         foregroundColor = Color.white
+-        fill = Color.blue
++        fill = Color("AccentColor")
+     case "gray":
+         foregroundColor = Color.accentColor
+         fill = Color.gray
+diff --git a/TrollApps/TrollApps/Views/AppsView.swift b/TrollApps/TrollApps/Views/AppsView.swift
+index 8ac616e..a5e5e62 100644
+--- a/TrollApps/TrollApps/Views/AppsView.swift
++++ b/TrollApps/TrollApps/Views/AppsView.swift
+@@ -21,9 +21,8 @@ struct AppsView: View {
+                 }
+             }
+             .listStyle(PlainListStyle())
+-            .listRowInsets(EdgeInsets(top: 15, leading: 15, bottom: 15, trailing: 20))
++            .listRowInsets(EdgeInsets())
+             .environment(\.defaultMinListRowHeight, 50)
+-            .listStyle(PlainListStyle())
+             .navigationTitle("INSTALLED_APPS")
+         }
+         .navigationViewStyle(.stack)
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
 index 5a4ce1f..d2afddf 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
@@ -856,7 +925,7 @@ index 5a4ce1f..d2afddf 100644
 +    }
 +}
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..b4c6e27 100644
+index 9419ce7..f077719 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
 @@ -6,6 +6,7 @@
@@ -880,7 +949,30 @@ index 9419ce7..b4c6e27 100644
          let devName = (app.developerName != nil && app.developerName != "" ? (app.developerName ?? "") : "")
          
          VStack(alignment: .leading) {
-@@ -43,7 +48,7 @@ struct AppCell: View {
+@@ -22,19 +27,20 @@ struct AppCell: View {
+                     KFImage(URL(string: app.iconURL))
+                         .resizable()
+                         .frame(width: 48, height: 48)
+-                        .clipShape(RoundedRectangle(cornerRadius: 10))
++                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                         .padding(.trailing, 7)
+                     
+                 } else {
+                     Image("MissingApp")
+                         .resizable()
+                         .frame(width: 48, height: 48)
+-                        .clipShape(RoundedRectangle(cornerRadius: 10))
++                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                         .padding(.trailing, 7)
+                 }
+                 
+                 VStack(alignment: .leading) {
+                     Text(app.name)
++                        .font(.body.bold())
+                     CollapsibleText(text: devName , isExpanded: .constant(false), maxLines: 1)
+                         .font(.caption)
+                         .foregroundColor(.gray)
+@@ -43,7 +49,7 @@ struct AppCell: View {
                          .foregroundColor(.gray)
                  }
                  Spacer()
@@ -889,10 +981,19 @@ index 9419ce7..b4c6e27 100644
              }
              
              if showFullMode {
-@@ -66,6 +71,18 @@ struct AppCell: View {
+@@ -66,6 +72,27 @@ struct AppCell: View {
          }
          .frame(maxWidth: .infinity, alignment: .leading)
          .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
++        // Modern kart gorunumu: yuvarlak, surekli (continuous) kose; sistem
++        // arka plan rengiyle acik/koyu temaya uyum saglar.
++        .background(
++            RoundedRectangle(cornerRadius: 14, style: .continuous)
++                .fill(Color(UIColor.secondarySystemBackground))
++        )
++        .padding(.horizontal, 8)
++        .padding(.vertical, 4)
++        .listRowBackground(Color.clear)
 +        .contextMenu {
 +            // Not: Button(role:) iOS 15+ oldugu icin (deployment target 14.0)
 +            // rol kullanilmiyor; menu ogesi sade Button olarak ekleniyor.
@@ -908,6 +1009,41 @@ index 9419ce7..b4c6e27 100644
          .background(
              NavigationLink("", destination: AppDetailsView(appDetails: app))
                  .opacity(0)
+diff --git a/TrollApps/TrollApps/Views/Cells/InstalledAppCell.swift b/TrollApps/TrollApps/Views/Cells/InstalledAppCell.swift
+index 9e9d827..fff8c7d 100644
+--- a/TrollApps/TrollApps/Views/Cells/InstalledAppCell.swift
++++ b/TrollApps/TrollApps/Views/Cells/InstalledAppCell.swift
+@@ -42,6 +42,15 @@ struct InstalledAppCell: View {
+             
+         }
+         .frame(maxWidth: .infinity)
++        // Modern kart gorunumu: yuvarlak, surekli kose, sistem arka plan rengi.
++        .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
++        .background(
++            RoundedRectangle(cornerRadius: 14, style: .continuous)
++                .fill(Color(UIColor.secondarySystemBackground))
++        )
++        .padding(.horizontal, 8)
++        .padding(.vertical, 4)
++        .listRowBackground(Color.clear)
+         .contextMenu
+         {
+             if(app.id != "com.opa334.TrollStore" && app.id != Bundle.main.bundleIdentifier) {
+diff --git a/TrollApps/TrollApps/Views/FeaturedView.swift b/TrollApps/TrollApps/Views/FeaturedView.swift
+index c45a8d7..a340cf5 100644
+--- a/TrollApps/TrollApps/Views/FeaturedView.swift
++++ b/TrollApps/TrollApps/Views/FeaturedView.swift
+@@ -19,7 +19,9 @@ struct FeaturedView: View {
+             List {
+                 ForEach(repos.sorted(by: { $0.data.name ?? "UNNAMED_REPO" < $1.data.name ?? "UNNAMED_REPO" })) { repo in
+                     if (repo.data.featuredApps ?? []).count > 0 {
+-                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")) {
++                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")
++                            .font(.subheadline.bold())
++                            .foregroundColor(Color("AccentColor"))) {
+                             ForEach(repo.data.featuredApps ?? [], id: \.self) { featuredAppId in
+                                 ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
+                                     AppCell(app: app, showFullMode: false)
 diff --git a/TrollApps/TrollApps/Views/NavView.swift b/TrollApps/TrollApps/Views/NavView.swift
 index 88ad243..3fdce22 100644
 --- a/TrollApps/TrollApps/Views/NavView.swift
@@ -974,6 +1110,19 @@ index af671c8..c093a95 100644
                      ];
  
                      Picker("APP_LANGUAGE", selection: $userSettings.lang) {
+diff --git a/TrollApps/TrollApps/Views/Subviews/SourceView.swift b/TrollApps/TrollApps/Views/Subviews/SourceView.swift
+index edb929b..c189b62 100644
+--- a/TrollApps/TrollApps/Views/Subviews/SourceView.swift
++++ b/TrollApps/TrollApps/Views/Subviews/SourceView.swift
+@@ -73,7 +73,7 @@ struct SearchBar: View {
+ 
+     var body: some View {
+         ZStack {
+-            RoundedRectangle(cornerRadius: 8)
++            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                 .fill(Color(.systemGray5))
+                 .frame(height: 36)
+ 
 diff --git a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift b/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
 index c09a38e..978e861 100644
 --- a/TrollApps/TrollApps/Views/Supplements/DynamicButton.swift
