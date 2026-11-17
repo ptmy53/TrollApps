@@ -65,7 +65,7 @@ index eb87897..fc1c53c 100644
      }
    ],
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..72da5a9 100644
+index ca8ec62..4a43098 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,9 @@
@@ -78,7 +78,7 @@ index ca8ec62..72da5a9 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +38,146 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +38,190 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -225,6 +225,50 @@ index ca8ec62..72da5a9 100644
 +        UserDefaults.standard.set(names, forKey: HiddenAppsManager.storageKey)
 +    }
 +}
++
++// MARK: - Yenilikler akisi (Sileo tarzi)
++// Repolar taranirken ilk kez gorulen paketler, ilk goruldugu anin zaman damgasi
++// ile kaydedilir; "Yenilikler" sekmesi bu kayitlari tarihe gore gruplar.
++final class NewAppsManager: ObservableObject {
++    static let shared = NewAppsManager()
++
++    private static let storageKey = "newAppDates"
++    private static let maxEntries = 400
++
++    @Published private(set) var dates: [String: Double]
++
++    private init() {
++        dates = UserDefaults.standard.dictionary(forKey: NewAppsManager.storageKey) as? [String: Double] ?? [:]
++    }
++
++    // Repolari tarar; daha once gorulmemis bundle id'leri kaydeder.
++    func scan(_ repos: [RepoMemory]) {
++        var updated = dates
++        let now = Date().timeIntervalSince1970
++        var changed = false
++
++        for repo in repos {
++            for app in repo.data.apps {
++                guard let id = app.bundleIdentifier, !id.isEmpty else { continue }
++                if updated[id] == nil {
++                    updated[id] = now
++                    changed = true
++                }
++            }
++        }
++
++        guard changed else { return }
++
++        // Kayitlar buyumesin: en yeni kayitlari tut, eskileri dusur.
++        if updated.count > NewAppsManager.maxEntries {
++            let newest = updated.sorted { $0.value > $1.value }.prefix(NewAppsManager.maxEntries)
++            updated = Dictionary(uniqueKeysWithValues: newest.map { ($0.key, $0.value) })
++        }
++
++        dates = updated
++        UserDefaults.standard.set(dates, forKey: NewAppsManager.storageKey)
++    }
++}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
 index 93e7fc1..3cd9a47 100644
 --- a/TrollApps/TrollApps/Managers/InstallManager.swift
@@ -294,7 +338,7 @@ index e7a5c20..e55e5bb 100644
                                                          .foregroundColor(.gray)
                                                  } else if queueManager.isProcessing {
 diff --git a/TrollApps/TrollApps/Managers/RepoManager.swift b/TrollApps/TrollApps/Managers/RepoManager.swift
-index e76b617..508e5b2 100644
+index e76b617..cda6b9a 100644
 --- a/TrollApps/TrollApps/Managers/RepoManager.swift
 +++ b/TrollApps/TrollApps/Managers/RepoManager.swift
 @@ -108,9 +108,11 @@ struct Application: Codable, Identifiable, Hashable {
@@ -324,10 +368,13 @@ index e76b617..508e5b2 100644
      
      func fetchRepos() {
          self.hasFetchedRepos = true
-@@ -143,10 +152,121 @@ class RepositoryManager: ObservableObject {
+@@ -143,10 +152,124 @@ class RepositoryManager: ObservableObject {
              self.ReposData = fetchedResults
              self.BadRepos = errors
              
++            // Yenilikler akisi: repoda ilk kez gorulen paketleri kaydet.
++            NewAppsManager.shared.scan(fetchedResults)
++            
 +            let bundleIDs = fetchedResults.flatMap { $0.data.apps }.compactMap { $0.bundleIdentifier }.filter { self.IsAppInstalled($0) }
 +            self.refreshStoreMinimumOS(for: bundleIDs)
 +            
@@ -447,7 +494,7 @@ index e76b617..508e5b2 100644
          let dispatchGroup = DispatchGroup()
          
 diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
-index 128d738..0843855 100644
+index 128d738..c027419 100644
 --- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 +++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 @@ -13,6 +13,11 @@
@@ -462,7 +509,7 @@ index 128d738..0843855 100644
  // Buttons
  "OPEN" = "OPEN";
  "GET" = "GET";
-@@ -149,3 +154,10 @@
+@@ -149,3 +154,13 @@
  "ERROR_REMOVING_EXISTING_IPA_FILE" = "Failed to remove IPA file from previous installation.";
  
  "ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "Failed to download / write IPA file";
@@ -473,12 +520,15 @@ index 128d738..0843855 100644
 +"HIDDEN_APPS" = "Hidden apps";
 +"NO_HIDDEN_APPS" = "No hidden apps";
 +"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. Hidden apps stay hidden for good; they come back only when you unhide them from this list.";
++
++"WHATS_NEW" = "What's New";
++"NO_NEW_APPS" = "No new apps yet. Newly added apps will appear here.";
 diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
 new file mode 100644
-index 0000000..eabeca9
+index 0000000..4d49b75
 --- /dev/null
 +++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,173 @@
 +/* 
 +  Localizable.strings
 +  TrollApps
@@ -649,6 +699,9 @@ index 0000000..eabeca9
 +"HIDDEN_APPS" = "Gizlenen uygulamalar";
 +"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
 +"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
++
++"WHATS_NEW" = "Yenilikler";
++"NO_NEW_APPS" = "Henüz yeni uygulama yok. Yeni eklenen uygulamalar burada görünecek.";
 \ No newline at end of file
 diff --git a/TrollApps/TrollApps/Styles/Buttons.swift b/TrollApps/TrollApps/Styles/Buttons.swift
 index 06974a9..f1fb4ec 100644
@@ -1045,7 +1098,7 @@ index c45a8d7..a340cf5 100644
                                  ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
                                      AppCell(app: app, showFullMode: false)
 diff --git a/TrollApps/TrollApps/Views/NavView.swift b/TrollApps/TrollApps/Views/NavView.swift
-index 88ad243..3fdce22 100644
+index 88ad243..f09c8e1 100644
 --- a/TrollApps/TrollApps/Views/NavView.swift
 +++ b/TrollApps/TrollApps/Views/NavView.swift
 @@ -10,7 +10,9 @@ import SwiftUIIntrospect
@@ -1059,7 +1112,13 @@ index 88ad243..3fdce22 100644
      @EnvironmentObject var alertManager: AlertManager
      @EnvironmentObject var userSettings: UserSettings
      @EnvironmentObject var queueManager: QueueManager
-@@ -28,7 +30,10 @@ struct NavView: View {
+@@ -23,12 +25,16 @@ struct NavView: View {
+                 QueueManagerView(content: SourcesView()).tag(1).tabItem { Label("REPOS", systemImage: "shippingbox") }
+                 QueueManagerView(content: AppsView()).tag(2).tabItem { Label("APPS", systemImage: "app") }
+                 QueueManagerView(content: BrowseView()).tag(3).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
++                QueueManagerView(content: NewsView()).tag(4).tabItem { Label("WHATS_NEW", systemImage: "newspaper.fill") }
+                 //            QueueManagerView(content: NewsView()).tag(1).tabItem { Label("NEWS", systemImage: "newspaper.fill") }
+             }
              .introspect(.tabView, on: .iOS(.v14, .v15, .v16, .v17)) { tabView in
                  tabView.tabBar.isHidden = !queueManager.canClose
                  tabView.tabBar.isTranslucent = true
@@ -1071,6 +1130,176 @@ index 88ad243..3fdce22 100644
                  let tabBarAppearance: UITabBarAppearance = UITabBarAppearance()
                  tabBarAppearance.configureWithDefaultBackground()
                  
+diff --git a/TrollApps/TrollApps/Views/NewsView.swift b/TrollApps/TrollApps/Views/NewsView.swift
+index 09f52b2..3da9bdf 100644
+--- a/TrollApps/TrollApps/Views/NewsView.swift
++++ b/TrollApps/TrollApps/Views/NewsView.swift
+@@ -3,12 +3,164 @@
+ //  TrollApps
+ //
+ //  Created by Cleopatra on 2023-12-15.
++//  Sileo'nun "Yenilikler" sekmesinden esinlenen akis: repolar icin ilk kez
++//  gorulen paketler, ilk goruldugu tarihe gore gruplanarak listelenir.
+ //
+ 
+ import SwiftUI
++import Kingfisher
++
++// Tarih grubu: "17 KASIM 2026 11:49" gibi bir baslik ve o ana dusen paketler.
++private struct NewsGroup: Identifiable {
++    let title: String
++    let epoch: Double
++    let apps: [Application]
++    let repoNames: [String: String]
++    var id: String { title }
++}
++
++// Tek paket satirinin baglamlari: uygulama ve depo adi.
++private struct NewsRowContext: Identifiable {
++    let app: Application
++    let repoName: String
++    var id: String { app.bundleIdentifier ?? app.id.uuidString }
++}
+ 
+ struct NewsView: View {
++    // Kayit degisince akis aninda yenilensin.
++    @ObservedObject private var newApps = NewAppsManager.shared
++    @EnvironmentObject var repoManager: RepositoryManager
++
+     var body: some View {
+-        Text("Coming Soon.")
++        NavigationView {
++            List {
++                if groups.isEmpty {
++                    Text("NO_NEW_APPS")
++                        .font(.caption)
++                        .foregroundColor(.gray)
++                } else {
++                    ForEach(groups) { group in
++                        Section(header:
++                            // Sileo'daki gibi gri yuvarlak tarih rozeti.
++                            Text(group.title)
++                                .font(.caption.bold())
++                                .padding(.horizontal, 10)
++                                .padding(.vertical, 4)
++                                .background(
++                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
++                                        .fill(Color(UIColor.systemGray5))
++                                )
++                        ) {
++                            ForEach(group.apps, id: \.bundleIdentifier) { app in
++                                NewsRow(app: app, repoName: group.repoNames[app.bundleIdentifier ?? ""] ?? "UNNAMED_REPO")
++                            }
++                        }
++                    }
++                }
++            }
++            .listStyle(PlainListStyle())
++            .navigationTitle("WHATS_NEW")
++        }
++        .navigationViewStyle(.stack)
++    }
++
++    // Kayitlari zamana gore gruplar: her farkli tarihe (dakika hassasiyetiyle)
++    // o ana ilk kez gorulen paketler girer, en yeni grup en ustte.
++    private var groups: [NewsGroup] {
++        let formatter = DateFormatter()
++        formatter.dateFormat = "d MMMM y HH:mm"
++        formatter.locale = Locale.current
++
++        var sorted = newApps.dates.sorted { $0.value > $1.value }
++        sorted.removeAll { $0.key.isEmpty }
++
++        var titles: [String: Double] = [:]
++        var idsByTitle: [String: [String]] = [:]
++
++        for (bundleId, epoch) in sorted {
++            let title = formatter.string(from: Date(timeIntervalSince1970: epoch)).uppercased(with: Locale.current)
++            titles[title] = epoch
++            idsByTitle[title, default: []].append(bundleId)
++        }
++
++        // Paketleri depolar arasinda tek tek coz (bundle id -> Application + depo adi).
++        var appCache: [String: (Application, String)] = [:]
++        for repo in repoManager.ReposData {
++            for app in repo.data.apps {
++                if let id = app.bundleIdentifier, appCache[id] == nil {
++                    appCache[id] = (app, repo.data.name ?? "UNNAMED_REPO")
++                }
++            }
++        }
++
++        var result: [NewsGroup] = []
++        for (title, epoch) in titles.sorted(by: { $0.value > $1.value }) {
++            var apps: [Application] = []
++            var repoNames: [String: String] = [:]
++            for id in idsByTitle[title] ?? [] {
++                if let (app, repoName) = appCache[id] {
++                    apps.append(app)
++                    repoNames[id] = repoName
++                }
++            }
++            if !apps.isEmpty {
++                result.append(NewsGroup(title: title, epoch: epoch, apps: apps, repoNames: repoNames))
++            }
++        }
++
++        return result
++    }
++}
++
++// Sileo tarzi satir: ikon + vurgu renginde nokta ve ad, "gelistirici • surum •
++// depo" satiri, aciklama. Satira dokununca uygulama detay sayfasi acilir.
++private struct NewsRow: View {
++    let app: Application
++    let repoName: String
++
++    var body: some View {
++        NavigationLink(destination: AppDetailsView(appDetails: app)) {
++            HStack(alignment: .top) {
++                if app.iconURL != "" {
++                    KFImage(URL(string: app.iconURL))
++                        .resizable()
++                        .frame(width: 48, height: 48)
++                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                        .padding(.trailing, 10)
++                } else {
++                    Image("MissingApp")
++                        .resizable()
++                        .frame(width: 48, height: 48)
++                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                        .padding(.trailing, 10)
++                }
++
++                VStack(alignment: .leading, spacing: 2) {
++                    HStack(spacing: 6) {
++                        Circle()
++                            .fill(Color("AccentColor"))
++                            .frame(width: 8, height: 8)
++                        Text(app.name)
++                            .font(.body.bold())
++                            .foregroundColor(Color("AccentColor"))
++                    }
++
++                    let devName = (app.developerName ?? "").isEmpty ? "" : app.developerName! + " • "
++                    let version = (app.version ?? "").isEmpty ? "" : app.version! + " • "
++                    Text(devName + version + repoName)
++                        .font(.caption)
++                        .foregroundColor(.gray)
++                        .lineLimit(1)
++
++                    if let description = app.localizedDescription, !description.isEmpty {
++                        Text(description)
++                            .font(.caption)
++                            .foregroundColor(.gray)
++                            .lineLimit(1)
++                    }
++                }
++            }
++            .padding(.init(top: 6, leading: 15, bottom: 6, trailing: 15))
++        }
+     }
+ }
 diff --git a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift b/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
 index bab8c6c..8c530f6 100644
 --- a/TrollApps/TrollApps/Views/Subviews/AppDetailsView.swift
