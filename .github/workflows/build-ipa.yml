@@ -12,9 +12,9 @@ permissions:
 
 jobs:
   build:
-    # macos-15 havuzunda runner'lar saatlerce ayağa kalkmadigindan yeni
-    # macOS goruntusune (farkli kapasite havuzu) gecildi.
-    runs-on: macos-26
+    # macOS arm64 havuzunda uzun sureli kapasite sikisikligi var ("The job was
+    # not acquired by Runner of type hosted"); Intel goruntusu farkli havuz.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
