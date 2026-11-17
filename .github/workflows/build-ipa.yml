@@ -12,9 +12,15 @@ permissions:
 
 jobs:
   build:
-    # macOS arm64 havuzunda uzun sureli kapasite sikisikligi var ("The job was
-    # not acquired by Runner of type hosted"); Intel goruntusu farkli havuz.
-    runs-on: macos-15-intel
+    # macOS runner havuzlarinda zaman zaman kapasite sikisikligi oluyor
+    # ("The job was not acquired by Runner of type hosted"). Havuz secimini
+    # commit gerektirmeden degistirmek icin repo degiskeni kullanilabilir:
+    #   Settings > Secrets and variables > Actions > Variables > MACOS_RUNNER
+    # Ornek: macos-15-intel, macos-26-intel, macos-14, macos-15, macos-26
+    # Bos birakilirsa macos-15-intel kullanilir. Runner alinamayan isler
+    # retry-macos.yml tarafindan otomatik yeniden denenir.
+    runs-on: ${{ vars.MACOS_RUNNER || 'macos-15-intel' }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
