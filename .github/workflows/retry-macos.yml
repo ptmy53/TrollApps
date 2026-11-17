@@ -1,0 +1,41 @@
+name: macOS runner otomatik yeniden deneme
+
+# GitHub'ın macOS runner havuzunda kapasite sıkışıklığı olduğunda iş
+# "The job was not acquired by Runner of type hosted even after multiple attempts"
+# hatasıyla, hiçbir adım çalışmadan iptal edilir. Bu workflow yalnızca bu durumu
+# yakalar (runner atanmamış + 0 adım) ve işi otomatik olarak yeniden başlatır.
+# Gerçek derleme hatalarında devreye girmez. En fazla 6 deneme yapılır.
+
+on:
+  workflow_run:
+    workflows: ["Build TrollApps IPA (Updates section)"]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Runner alınamadıysa yeniden dene
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          ATTEMPT=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt)
+          if [ "$ATTEMPT" -ge 6 ]; then
+            echo "Deneme sınırına ulaşıldı ($ATTEMPT/6). Elle yeniden denemen gerekiyor."
+            exit 0
+          fi
+          STUCK=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '[.jobs[] | select((.runner_name // "") == "" and ((.steps // []) | length) == 0)] | length')
+          if [ "$STUCK" -eq 0 ]; then
+            echo "Gerçek hata (runner atanmış veya adımlar çalışmış). Otomatik yeniden deneme yok."
+            exit 0
+          fi
+          echo "$STUCK iş runner alamadan iptal edildi. Yeniden deneniyor (deneme $ATTEMPT/6)."
+          gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs"
