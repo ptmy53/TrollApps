@@ -27,11 +27,11 @@ public struct AppStoreStyle: ButtonStyle {
             .frame(height: 30, alignment: .center)
             .frame(minWidth: 80)
             .background(
-                RoundedRectangle(cornerRadius: 25.0, style: .continuous)
+                RoundedRectangle(cornerRadius: 14.0, style: .continuous)
                     .fill(fill)
                     .opacity(dissabled ? 0.4 : type == "blue" || type == "pink" ? 1 : 0.2)
             )
-            .opacity(configuration.isPressed ? 0.2 : 1.0)
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
     }
 }
 
@@ -55,11 +55,23 @@ public struct LongButtonStyle: ButtonStyle {
             .frame(height: 50, alignment: .center)
             .frame(width: 350)
             .background(
-                RoundedRectangle(cornerRadius: 10.0, style: .continuous)
-                    .fill(fill)
+                // Modern dolgu: birincil islemler (Guncelle/Kur) vurgu renginin
+                // yumusak dikey gecisiyle boyanir.
+                RoundedRectangle(cornerRadius: 14.0, style: .continuous)
+                    .fill(buttonFill(forType: type))
                     .opacity(dissabled ? 0.4 : type == "blue" || type == "pink" ? 1 : 0.2)
             )
-            .opacity(configuration.isPressed ? 0.2 : 1.0)
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
+    }
+
+    private func buttonFill(forType type: String) -> Color {
+        if type == "blue" && !dissabled {
+            return Color("AccentColor")
+        }
+        if type == "pink" && !dissabled {
+            return Color.pink
+        }
+        return colors(forType: type).1
     }
 }
 
@@ -70,7 +82,7 @@ private func colors(forType type: String) -> (Color, Color) {
     switch type {
     case "blue":
         foregroundColor = Color.white
-        fill = Color.blue
+        fill = Color("AccentColor")
     case "gray":
         foregroundColor = Color.accentColor
         fill = Color.gray

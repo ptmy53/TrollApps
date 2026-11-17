@@ -174,6 +174,10 @@ struct AppDetailsView: View {
             .padding(.bottom, 20)
         }
         .navigationBarTitle("", displayMode: .inline)
+        .onAppear {
+            // En yeni surum cihazin iOS surumuyle uyumlu degilse uyumlu olani sec.
+            selectedVersionIndex = compatibleVersionIndex(appDetails.versions, appMinOSVersion: appDetails.minOSVersion, appMaxOSVersion: appDetails.maxOSVersion) ?? 0
+        }
         
         var backgroundFillColor: Color {
             if let customTintColor = appDetails.tintColor, !customTintColor.isEmpty {

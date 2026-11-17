@@ -1,24 +1,28 @@
-# TrollApps 2.4
+# TrollApps 2.5
 
 ## English
 
-### What's new in 2.4
+### What's new in 2.5
 
-- **New "What's New" tab** (inspired by Sileo): a fifth tab in the bottom bar,
-  next to Featured. It lists apps **newly added to your repos**, grouped by
-  date with a badge like `17 NOVEMBER 2026 11:49`, showing the icon, app name
-  (accent color), `developer • version • repo` line and a one-line description.
-  Tapping a row opens the app details page.
-- **Smart filtering**: the tab only shows apps added **since you last opened
-  it**. Opening the tab marks the list as read; everything you saw once will
-  not come back, and only apps added after that appear next time. On first
-  launch, the current repo contents are treated as a baseline, so nothing is
-  reported as "new" before you even start.
-- **New tab order**: Featured → What's New → Browse → Repos → Apps, and the
-  app now opens on the **Featured** page.
-- All previously shipped features are included: permanent app hiding
-  (long-press → Hide, unhide from the eye.slash menu), faster Browse list,
-  and the modern card-based UI with a custom accent color.
+- **"What's New" is now an event log.** Every repo scan compares each app's
+  version with the previous scan. Apps whose version changed are recorded as
+  **updated**, apps seen for the first time are recorded as **new**.
+  Each event carries the time of the scan that found it.
+- **Grouped by scan time, newest first.** Open the app at 21:00 and updates
+  found at that scan appear as a `21:00` group. Open it again at 21:15: the
+  updates found then appear in a new `21:15` group at the top, while the
+  `21:00` group stays below it. You no longer get one flat list of everything.
+- **Pull down to rescan.** Pull the list down (or tap the refresh button) to
+  scan your repos again. If new updates are found, a new group stamped with
+  the current time appears at the top; if nothing changed, the list stays as
+  it is.
+- **Baseline on first run.** The very first scan only records the current
+  versions, so installing this update does not flood the tab with every app
+  in your repos.
+- Each row shows the version that the update brought, plus an `UPDATED` or
+  `NEW` badge. The list keeps the last 30 days of events (at most 20 groups).
+- All previously shipped features are included: permanent app hiding,
+  faster Browse list, modern card-based UI and the Featured-first tab order.
 
 ### Install
 1. Download `TrollApps-updates.ipa` below.
@@ -27,24 +31,28 @@
 
 ## Türkçe
 
-### 2.4'te yenilikler
+### 2.5'te yenilikler
 
-- **Yeni "Yenilikler" sekmesi** (Sileo'dan esinlenildi): alt barın ikinci
-  sırasında, Öne Çıkanlar'ın hemen yanında. Repolarınıza **yeni eklenen
-  uygulamaları** `17 KASIM 2026 11:49` biçiminde tarih rozetleriyle gruplu
-  gösterir; satırlarda ikon, uygulama adı (vurgu renginde),
-  `geliştirici • sürüm • depo` satırı ve tek satırlık açıklama bulunur.
-  Satıra dokununca uygulama detay sayfası açılır.
-- **Akıllı filtreleme**: Sekme yalnızca **son girişinizden beri** eklenen
-  uygulamaları gösterir. Sekmeyi açtığınızda liste "okundu" işaretlenir;
-  bir kez gördükleriniz geri gelmez, bir sonraki açılışta yalnızca o andan
-  sonra eklenenler görünür. İlk açılışta mevcut repo içerikleri baz olarak
-  alınır; hiçbir şey "yeni" olarak bildirilmez.
-- **Yeni sekme sırası**: Öne Çıkanlar → Yenilikler → Gözat → Depolar →
-  Uygulamalar; uygulama artık **Öne Çıkanlar** sayfasıyla açılır.
-- Önceki sürümlerdeki tüm özellikler dahil: kalıcı uygulama gizleme
-  (uzun bas → Gizle, göz-kapalı menüsünden geri alma), daha hızlı Gözat
-  listesi ve özel vurgu renkli modern kart arayüzü.
+- **"Yenilikler" artık bir olay kaydı.** Her repo taraması, her uygulamanın
+  sürümünü önceki taramayla karşılaştırır. Sürümü değişenler **güncellendi**,
+  ilk kez görülenler **yeni** olarak kaydedilir. Her olay, onu bulan taramanın
+  saatini taşır.
+- **Tarama saatine göre gruplar, en yenisi üstte.** Uygulamayı 21:00'de
+  açtığınızda o taramada bulunan güncellemeler `21:00` grubu olarak görünür.
+  21:15'te tekrar açtığınızda o an bulunanlar en üstte yeni bir `21:15` grubu
+  olarak çıkar, `21:00` grubu ise altında kalır. Artık her şey tek düz liste
+  halinde gösterilmez.
+- **Aşağı çekerek yeniden tarama.** Listeyi aşağı çekin (veya yenile
+  düğmesine dokunun); repolar yeniden taranır. Yeni güncelleme varsa o anki
+  saatle en üstte yeni bir grup çıkar, değişiklik yoksa liste olduğu gibi kalır.
+- **İlk açılışta baz kaydı.** İlk tarama yalnızca mevcut sürümleri kaydeder;
+  böylece bu güncellemeyi kurduğunuzda repolardaki tüm uygulamalar "yeni"
+  olarak listelenmez.
+- Her satırda güncellemenin getirdiği sürüm ile `GÜNCELLENDİ` veya `YENİ`
+  rozeti görünür. Liste son 30 günün olaylarını (en fazla 20 grup) saklar.
+- Önceki sürümlerdeki tüm özellikler dahil: kalıcı uygulama gizleme, daha
+  hızlı Gözat listesi, modern kart arayüzü ve Öne Çıkanlar'la açılan sekme
+  sırası.
 
 ### Kurulum
 1. Aşağıdaki `TrollApps-updates.ipa` dosyasını indirin.

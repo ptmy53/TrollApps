@@ -103,6 +103,7 @@
 		74E2E2AD2B25627B009E1D73 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
 		74E2E2B32B27C086009E1D73 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		74E2E2B52B27C098009E1D73 /* zh-Hans */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; lineEnding = 0; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		74E2E2B62B27C086009E1D74 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		74F1F9A45C32D0914B27E2A8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
 		CC759146293BD896007DE225 /* TSUtil.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSUtil.m; sourceTree = "<group>"; };
 		CC759149293BD95A007DE225 /* SpringBoardFoundation.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = SpringBoardFoundation.tbd; path = TrollApps/SpringBoardFoundation.tbd; sourceTree = "<group>"; };
@@ -337,6 +338,7 @@
 				ar,
 				"zh-Hant",
 				nb,
+				tr,
 				Base,
 			);
 			mainGroup = 6D8817B9291ECB97007139C6;
@@ -421,6 +423,7 @@
 				740916BD2B2A45D10004A33A /* ar */,
 				7423BCCA2B2BE7AF000048BE /* zh-Hant */,
 				742E29902B2BF09700B2690D /* nb */,
+				74E2E2B62B27C086009E1D74 /* tr */,
 			);
 			name = Localizable.strings;
 			sourceTree = "<group>";
@@ -584,7 +587,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/TrollApps",
 				);
-				MARKETING_VERSION = 2.3;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -633,7 +636,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/TrollApps",
 				);
-				MARKETING_VERSION = 2.3;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

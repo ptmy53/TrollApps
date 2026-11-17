@@ -156,7 +156,8 @@ struct SettingsView: View {
                       "Deutsch",
                       "Bahasa Indonesia",
                       "العربية",
-                      "Norsk bokmål"
+                      "Norsk bokmål",
+                      "Türkçe"
                     ];
                     
                     let langOptions = [
@@ -166,7 +167,8 @@ struct SettingsView: View {
                         "de",
                         "id",
                         "ar",
-                        "nb"
+                        "nb",
+                        "tr"
                     ];
 
                     Picker("APP_LANGUAGE", selection: $userSettings.lang) {

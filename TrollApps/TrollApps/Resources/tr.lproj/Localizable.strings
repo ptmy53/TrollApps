@@ -1,0 +1,176 @@
+/* 
+  Localizable.strings
+  TrollApps
+
+  Created by Cleopatra on 2023-12-11.
+  
+*/
+
+// Bottom Bar
+"FEATURED" = "Öne Çıkanlar";
+"REPOS" = "Kaynaklar";
+"BROWSE" = "Gözat";
+"APPS" = "Uygulamalar";
+"SETTINGS" = "Ayarlar";
+
+// Browse list sections
+"UPDATES" = "Güncellemeler";
+"ALL_APPS" = "Tüm Uygulamalar";
+"NO_UPDATES" = "Güncelleme yok";
+
+// Buttons
+"OPEN" = "AÇ";
+"GET" = "İNDİR";
+"UPDATE" = "GÜNCELLE";
+"OLDER" = "DAHA ESKİ";
+
+// Repos Menu
+"BROKEN_REPOS" = "Bozuk Kaynaklar";
+"BROKEN_SOURCES" = "Bozuk Kaynaklar";
+"EXPORT" = "Dışa Aktar";
+"DELETE" = "Sil";
+
+"UNNAMED_REPO" = "Adsız Kaynak";
+"COPY_REPO_URL" = "Kaynak URL'sini Kopyala";
+"COPY_REPO_BASE_URL" = "Kaynak[] URL'sini Kopyala";
+"COPY_SOURCE_URL" = "Kaynak URL'sini Kopyala";
+"DELETE_REPO" = "Kaynağı Sil";
+
+"UNABLE_TO_LOAD_REPO" = "Kaynak yüklenemedi";
+
+// Add Repo Menu
+"ADD_REPOS" = "Kaynak Ekle";
+"REPO_URL" = "Kaynak URL";
+"ADD_REPOS_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
+"ADD_REPO_TOOLTIP" = "Lütfen geçerli bir kaynak URL'si girdiğinizden emin olun. Elle yazmak yerine buraya kopyalayıp yapıştırmanız önerilir.";
+"ADD_REPO_FROM_CLIPBOARD" = "Panodan kaynak ekle";
+
+// Apps Detailed View
+"WHATS_NEW" = "Yenilikler";
+"VERSION %@" = "Sürüm %@";
+"UNKNOWN_VERSION" = "Bilinmeyen Sürüm";
+"UNKNOWN_DEVELOPER" = "Bilinmeyen Geliştirici";
+
+"SELECT_VERSION" = "Sürüm Seç";
+
+// Browse View
+"SEARCH" = "Ara";
+
+// Apps View
+"INSTALLED_APPS" = "Yüklü Uygulamalar";
+"UNINSTALLED_APP %@" = "%@ kaldırıldı";
+"UNINSTALL_APP" = "Uygulamayı Kaldır";
+
+// Settings View
+"OPTIONS" = "Seçenekler";
+"CLEAR_IMAGE_CACHE" = "Görsel Önbelleğini Temizle";
+"DELETE_CACHE" = "Önbelleği Sil";
+"RESET_REPOS" = "Kaynakları Sıfırla";
+"RELOAD_SPRINGBOARD" = "Springboard'u Yeniden Yükle";
+"CLEAR_CACHE_TOOLTIP" = "Uygulama önbelleğini temizlemek performansı artırabilir ve TrollApps'in kullandığı depolama alanını azaltabilir.";
+"Clear_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
+"CLEAR_IMAGE_CACHE_TOOLTIP" = "\"Görsel Önbelleğini Temizle\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
+"DELETE_CACHE_TOOLTIP" = "\"Önbelleği Sil\" düğmesi, uygulama cihazınızda çok fazla depolama alanı kullanıyorsa kullanılmalıdır.";
+
+"APP_SETTINGS" = "Uygulama Ayarları";
+"REDUCED_MOTION" = "Hareketi Azalt";
+"COMPACT_REPO_VIEW" = "Kompakt Kaynak Görünümü";
+"ADD_REPO_KEYBOARD_TYPE" = "Kaynak Ekleme Klavye Türü";
+"CURRENT_BLUR_STRENGTH %@" = "Arka Plan Bulanıklık Gücü: %@";
+
+"APP_LANGUAGE" = "Uygulama Dili";
+"LANG_SWITCHED" = "Dil Değiştirildi";
+"PLEASE_RESTART_THIS_APP_FOR_THIS_TO_TAKE_EFFECT" = "Bunun düzgün şekilde etkili olması için lütfen uygulamayı kapatıp yeniden açın.";
+
+"DEVELOPERS" = "Geliştiriciler";
+
+"THANKS_TO" = "Teşekkürler...";
+"THANKS_TO_TOOLTIP" = "Bu harika uygulamalara, makalelere ve kişilere en büyük teşekkürler! Onlar olmasaydı bu proje mümkün olmaz, hatta var olamazdı!";
+
+"TRANSLATORS" = "Çevirmenler";
+"THANKS_TO_TRANSLATORS" = "TrollApps'in yerelleştirilmesine yardımcı olan çevirmenlerimize çok teşekkürler!";
+
+"OTHER_PROJECTS_AND_LICENSES" = "Kullanılan diğer projeler ve lisansları";
+
+"HELP_THE_PROJECT" = "Projeye Yardımcı Olun";
+"JOIN_OUR_DISCORD" = "Discord'umuza katılın";
+"REPORT_A_BUG" = "Hata Bildir!";
+"JSON_TEMPLATE" = "Kendi kaynağınızı oluşturmak için JSON şablonu!";
+
+// Alerts
+"ALERT" = "Uyarı";
+"OK" = "Tamam";
+"CANCEL" = "İptal";
+"YES" = "Evet";
+
+"SUCCESS" = "Başarılı!";
+"THE_APP_WILL_NOW_QUIT" = "Uygulama şimdi kapanacak...";
+
+"CLEARING_CACHE" = "Önbellek Temizleniyor";
+"CLEARING_IMAGE_CACHE" = "Görsel Önbelleği Temizleniyor";
+"RESETING_REPOS" = "Kaynaklar Sıfırlanıyor";
+"RELOADING_SPRINGBOARD" = "Springboard Yeniden Yükleniyor";
+"PLEASE_WAIT" = "Lütfen Bekleyin";
+
+"COPIED_REPOS_TO_CLIPBOARD" = "Kaynak(lar) panoya kopyalandı";
+
+"DUPLICATE_REPO" = "Yinelenen Kaynak";
+"ALREADY_ON_REPO_LIST" = "Bu kaynağı zaten kaynak listenize eklediniz.";
+
+"ADDING_REPO" = "Kaynak Ekleniyor";
+
+"UNKNOWN_ERROR_WHILE_INSTALLING" = "Bu uygulama yüklenirken bilinmeyen bir hata oluştu.";
+"PLEASE_RETRY_LATER" = "Lütfen bu yüklemeyi başka bir zaman tekrar deneyin.";
+
+"FAILED_TO_DOWNLOAD_OR_PARSE_APP" = "Uygulama indirilemedi ve ayrıştırılamadı.";
+"THIS_COULD_BE_MISSING_PERMS_OR_BROKEN_LINK" = "Bunun nedeni eksik izinler veya bozuk bir indirme bağlantısı olabilir.";
+
+"FAILED_TO_FETCH_APP_DOWNLOAD_URL" = "Uygulama indirme URL'si alınamadı.";
+"LIKELY_REPO_ISSUE" = "Muhtemelen bir kaynak sorunu.";
+
+"UNABLE_TO_UPDATE" = "Güncellenemiyor.";
+"NOT_TROLLSTORE_MANAGED" = "Bu uygulama başlangıçta TrollStore üzerinden yüklenmediği için bu güncelleme yüklenemez. Uygulamayı kaldırıp TrollApps üzerinden yeniden yüklemeyi düşünün.";
+
+"UNABLE_TO_START_INSTALL" = "Uygulama yüklemesi başlatılamıyor.";
+"PLEASE_WAIT_FOR_CURRENT_INSTALL_TO_FINISH" = "Lütfen mevcut yüklemenin tamamlanmasını bekleyin.";
+
+"TROLLAPPS_WILL_CLOSE" = "TrollApps kapanacak ve güncelleme işlemini tamamlamak için TrollStore'a yönlendirileceksiniz.";
+"DO_YOU_STILL_WISH_TO_UPDATE" = "TrollApps'i yine de güncellemek istiyor musunuz?";
+
+"ERROR_DECODING_BASE64_STRING" = "Base64 dizesi çözümlenirken hata oluştu.";
+"PLEASE_VERIFY_VALID_REPO_STRING" = "Lütfen bunun geçerli bir kaynak[] dizesi olduğunu doğrulayın.";
+
+// Install / Uninstall / Download Errors
+"FAILED_TO_INSTALL" = "Yükleme Başarısız";
+"INSTALLATION_RETURNED_ERROR %@" = "Yükleme hata döndürdü: %@";
+
+"ERROR_REMOVING_IPA_FILE_AFTER_INSTALL" = "Yüklemeden sonra IPA dosyası kaldırılırken hata oluştu";
+"LIKELY_A_PERMS_ISSUE" = "Bu muhtemelen bir izin sorunudur.";
+
+"MISSING_DOWNLOADED_IPA" = "İndirilen IPA artık indirme konumunda değil.";
+
+"TROLLSTORE_NOT_FOUND" = "TrollStore bulunamadı";
+"TROLLSTORE_IS_REQUIRED" = "TrollApps'in çalışması için TrollStore gereklidir.";
+
+"FAILED_TO_UNINSTALL" = "Kaldırma başarısız";
+"UNINSTALLATION_RETURNED_ERROR %@" = "Kaldırma hata döndürdü: %@";
+
+"INVALID_DOWNLOAD_URL" = "İndirme URL'si geçersiz";
+"LIKELY_A_REPO_ISSUE" = "Bu muhtemelen bu kaynakla ilgili bir sorun.";
+
+"ERROR_REMOVING_EXISTING_IPA_FILE" = "Önceki yüklemeden kalan IPA dosyası kaldırılamadı.";
+
+"ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "IPA dosyası indirilemedi / yazılamadı";
+"IOS_VERSION_TOO_LOW" = "Daha yeni bir iOS sürümü gerekiyor";
+
+"HIDE_APP" = "Gizle";
+"UNHIDE_APP" = "Tekrar göster";
+"HIDDEN_APPS" = "Gizlenen uygulamalar";
+"NO_HIDDEN_APPS" = "Gizlenen uygulama yok";
+"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
+
+"WHATS_NEW" = "Yenilikler";
+"NO_NEW_APPS" = "Henüz yeni bir şey yok. Depolarınızda eklenen veya güncellenen uygulamalar tarama saatine göre gruplanarak burada görünür.";
+"NEWS_UPDATED" = "GÜNCELLENDİ";
+"NEWS_ADDED" = "YENİ";
+"NEWS_GROUP_COUNT" = "%d değişiklik";

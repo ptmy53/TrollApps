@@ -42,6 +42,15 @@ struct InstalledAppCell: View {
             
         }
         .frame(maxWidth: .infinity)
+        // Modern kart gorunumu: yuvarlak, surekli kose, sistem arka plan rengi.
+        .padding(.init(top: 10, leading: 15, bottom: 10, trailing: 15))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .listRowBackground(Color.clear)
         .contextMenu
         {
             if(app.id != "com.opa334.TrollStore" && app.id != Bundle.main.bundleIdentifier) {

@@ -24,32 +24,57 @@ struct DynamicInstallButton: View {
 
     @ViewBuilder
     func appButton(json: Application) -> some View {
-        if repoManager.IsAppInstalled(json.bundleIdentifier ?? "") {
-            if let version = appDetails.versions?[selectedVersionIndex].version {
-                let status = repoManager.showUpdateButton(version1: version, BundleID: json.bundleIdentifier ?? "")
-                
-                switch status {
-                case 0:
-                    openButton(bundleIdentifier: json.bundleIdentifier ?? "")
+        let versions = appDetails.versions ?? []
+        // Bos/nil surum listesinde veya gecersiz indekste subscript yapma.
+        if versions.indices.contains(selectedVersionIndex) {
+            let selectedVersion = versions[selectedVersionIndex]
+            let bounds = resolvedOSBounds(
+                for: selectedVersion,
+                in: versions,
+                appMinOSVersion: appDetails.minOSVersion,
+                appMaxOSVersion: appDetails.maxOSVersion
+            )
+            // App Store degeri yalnizca repo o surum icin hic sinir bildirmediginde ve en yeni
+            // surum seciliyken dikkate alinir (o zaman teklif verilmez; zaten guncel olan OPEN kalir).
+            let storeMinOS = repoManager.storeMinimumOS[json.bundleIdentifier ?? ""]
+            let storeIncompatible = shouldCheckStoreCompatibility(for: selectedVersion, in: versions, selectedIndex: selectedVersionIndex, appMinOSVersion: appDetails.minOSVersion, appMaxOSVersion: appDetails.maxOSVersion)
+                && !(storeMinOS ?? "").isEmpty
+                && !isVersionCompatible(minOSVersion: storeMinOS, maxOSVersion: nil)
+
+            if isVersionCompatible(minOSVersion: bounds.minOSVersion, maxOSVersion: bounds.maxOSVersion) {
+                if repoManager.IsAppInstalled(json.bundleIdentifier ?? "") {
+                    let status = repoManager.showUpdateButton(version1: selectedVersion.version, BundleID: json.bundleIdentifier ?? "")
                     
-                case 1:
-                    if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
+                    switch status {
+                    case 0:
+                        openButton(bundleIdentifier: json.bundleIdentifier ?? "")
+                        
+                    case 1:
+                        if storeIncompatible {
+                            olderButton()
+                        } else if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
+                            queuedButton()
+                        } else {
+                            updateButton(bundleIdentifier: json.bundleIdentifier ?? "")
+                        }
+                    case 2:
+                        olderButton()
+                        
+                    default:
+                        EmptyView()
+                    }
+                } else {
+                    if storeIncompatible {
+                        olderButton()
+                    } else if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
                         queuedButton()
                     } else {
-                        updateButton(bundleIdentifier: json.bundleIdentifier ?? "")
+                        getButton()
                     }
-                case 2:
-                    olderButton()
-                    
-                default:
-                    EmptyView()
                 }
-            }
-        } else {
-            if queueManager.hasQueueItem(bundleIdentifier: appDetails.bundleIdentifier ?? "") {
-                queuedButton()
             } else {
-                getButton()
+                // Secili surum cihazin iOS surumuyle uyumlu degil: UPDATE/GET yerine devre disi buton.
+                olderButton()
             }
         }
     }

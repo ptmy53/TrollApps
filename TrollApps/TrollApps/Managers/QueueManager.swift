@@ -184,7 +184,7 @@ struct QueueManagerView<Content: View>: View {
                                                 Text(queueItem.name)
                                                 
                                                 if queueItem.error {
-                                                    Text(queueItem.message.title)
+                                                    Text(LocalizedStringKey(queueItem.message.title))
                                                         .font(.caption)
                                                         .foregroundColor(.gray)
                                                 } else if queueManager.isProcessing {

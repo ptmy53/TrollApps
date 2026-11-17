@@ -73,7 +73,7 @@ struct SearchBar: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(.systemGray5))
                 .frame(height: 36)
 

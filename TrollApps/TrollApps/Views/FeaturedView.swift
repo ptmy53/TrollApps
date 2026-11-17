@@ -19,7 +19,9 @@ struct FeaturedView: View {
             List {
                 ForEach(repos.sorted(by: { $0.data.name ?? "UNNAMED_REPO" < $1.data.name ?? "UNNAMED_REPO" })) { repo in
                     if (repo.data.featuredApps ?? []).count > 0 {
-                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")) {
+                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")
+                            .font(.subheadline.bold())
+                            .foregroundColor(Color("AccentColor"))) {
                             ForEach(repo.data.featuredApps ?? [], id: \.self) { featuredAppId in
                                 ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
                                     AppCell(app: app, showFullMode: false)

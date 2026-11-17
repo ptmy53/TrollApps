@@ -10,6 +10,7 @@ import SwiftUIIntrospect
 
 struct NavView: View {
     
+    // Uygulama acilirken "One Cikarlar" sekmesi (tag 0) acik gelir.
     @State private var selectedTab = 0
     @EnvironmentObject var alertManager: AlertManager
     @EnvironmentObject var userSettings: UserSettings
@@ -20,15 +21,18 @@ struct NavView: View {
             
             TabView(selection: $selectedTab) {
                 QueueManagerView(content: FeaturedView()).tag(0).tabItem { Label("FEATURED", systemImage: "star.fill") }
-                QueueManagerView(content: SourcesView()).tag(1).tabItem { Label("REPOS", systemImage: "shippingbox") }
-                QueueManagerView(content: AppsView()).tag(2).tabItem { Label("APPS", systemImage: "app") }
-                QueueManagerView(content: BrowseView()).tag(3).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
-                //            QueueManagerView(content: NewsView()).tag(1).tabItem { Label("NEWS", systemImage: "newspaper.fill") }
+                QueueManagerView(content: NewsView()).tag(1).tabItem { Label("WHATS_NEW", systemImage: "newspaper.fill") }
+                QueueManagerView(content: BrowseView()).tag(2).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
+                QueueManagerView(content: SourcesView()).tag(3).tabItem { Label("REPOS", systemImage: "shippingbox") }
+                QueueManagerView(content: AppsView()).tag(4).tabItem { Label("APPS", systemImage: "app") }
             }
             .introspect(.tabView, on: .iOS(.v14, .v15, .v16, .v17)) { tabView in
                 tabView.tabBar.isHidden = !queueManager.canClose
                 tabView.tabBar.isTranslucent = true
-                
+
+                // Modern tema: sekmeler ve dugmeler AccentColor'dan (mor-mavi) alir.
+                tabView.tabBar.tintColor = UIColor(named: "AccentColor")
+
                 let tabBarAppearance: UITabBarAppearance = UITabBarAppearance()
                 tabBarAppearance.configureWithDefaultBackground()
                 
@@ -40,7 +44,8 @@ struct NavView: View {
             }
         }
         .onOpenURL { url in
-            selectedTab = 1
+            // Kaynak ekleme baglantisi: Depolar sekmesini ac.
+            selectedTab = 3
         }
         .blur(radius: alertManager.isAlertPresented ? userSettings.blurStrength : 0.1
         )

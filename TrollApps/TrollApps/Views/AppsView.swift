@@ -21,9 +21,8 @@ struct AppsView: View {
                 }
             }
             .listStyle(PlainListStyle())
-            .listRowInsets(EdgeInsets(top: 15, leading: 15, bottom: 15, trailing: 20))
+            .listRowInsets(EdgeInsets())
             .environment(\.defaultMinListRowHeight, 50)
-            .listStyle(PlainListStyle())
             .navigationTitle("INSTALLED_APPS")
         }
         .navigationViewStyle(.stack)

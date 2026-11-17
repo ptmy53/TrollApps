@@ -108,9 +108,11 @@ struct Application: Codable, Identifiable, Hashable {
     var iconURL: String
     var screenshotURLs: [String]?
     var versions: [Version]?
+    var minOSVersion: String?
+    var maxOSVersion: String?
 
     enum CodingKeys: String, CodingKey {
-        case name, subtitle, bundleIdentifier, version, versionDate, size, downloadURL, developerName, localizedDescription, tintColor, iconURL, screenshotURLs, versions
+        case name, subtitle, bundleIdentifier, version, versionDate, size, downloadURL, developerName, localizedDescription, tintColor, iconURL, screenshotURLs, versions, minOSVersion, maxOSVersion
     }
 
     func hash(into hasher: inout Hasher) {
@@ -136,6 +138,13 @@ class RepositoryManager: ObservableObject {
     @Published var isInstallingApp = false
     @Published var isDownloadingApp = false
     
+    // bundleID -> App Store'daki minimum iOS surumu (bos deger: App Store'da bulunamadi).
+    @Published var storeMinimumOS: [String: String] = [:]
+    
+    private let storeCacheKey = "storeMinimumOSCache"
+    private let storeCacheTTL: TimeInterval = 24 * 60 * 60
+    private var storeLookupsInFlight: Set<String> = []
+    
     
     func fetchRepos() {
         self.hasFetchedRepos = true
@@ -143,8 +152,122 @@ class RepositoryManager: ObservableObject {
             self.ReposData = fetchedResults
             self.BadRepos = errors
             
+            // Yenilikler akisi: repoda ilk kez gorulen paketleri kaydet.
+            NewAppsManager.shared.scan(fetchedResults)
+            
+            let bundleIDs = fetchedResults.flatMap { $0.data.apps }.compactMap { $0.bundleIdentifier }.filter { self.IsAppInstalled($0) }
+            self.refreshStoreMinimumOS(for: bundleIDs)
+            
             self.hasFinishedFetchingRepos = true
         }
+    }
+    
+    // Kurulu uygulamalarin App Store'daki minimum iOS surumunu toplu halde tazeler.
+    // Onbellekte taze kaydi olanlar tekrar sorulmaz; ag hatasi onbellege yazilmaz.
+    func refreshStoreMinimumOS(for bundleIDs: [String]) {
+        var pending: [String] = []
+        var seen: Set<String> = []
+        let cache = loadStoreCache()
+        
+        for bundleID in bundleIDs {
+            let id = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, !seen.contains(id) else { continue }
+            seen.insert(id)
+            
+            if isStoreCacheEntryStale(cache[id]) {
+                pending.append(id)
+            } else {
+                let cachedMinOS = cachedStoreMinimumOS(cache[id])
+                if !cachedMinOS.isEmpty {
+                    DispatchQueue.main.async {
+                        self.storeMinimumOS[id] = cachedMinOS
+                    }
+                }
+            }
+        }
+        
+        // Ayni anda calisan cagrilar ayni kimligi ikinci kez sorgulamasin.
+        let idsToFetch = pending.filter { !self.storeLookupsInFlight.contains($0) }
+        guard !idsToFetch.isEmpty else { return }
+        self.storeLookupsInFlight.formUnion(idsToFetch)
+        
+        let region: String
+        if #available(iOS 16.0, *) {
+            region = Locale.current.region?.identifier ?? "US"
+        } else {
+            region = Locale.current.regionCode ?? "US"
+        }
+        
+        // Apple lookup ucnoktasi tek istekte sinirli sayida kimlik kabul ediyor: 20'lik parcalar.
+        for chunkStart in stride(from: 0, to: idsToFetch.count, by: 20) {
+            let chunk = Array(idsToFetch[chunkStart..<min(chunkStart + 20, idsToFetch.count)])
+            let bundleIdParameter = chunk.joined(separator: ",")
+            
+            guard let url = URL(string: "https://itunes.apple.com/lookup?bundleId=\(bundleIdParameter)&country=\(region.lowercased())&entity=software") else {
+                self.storeLookupsInFlight.subtract(chunk)
+                continue
+            }
+            
+            URLSession.shared.dataTask(with: url) { data, _, error in
+                guard error == nil, let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let results = json["results"] as? [[String: Any]] else {
+                    // Ag/ayristirma hatasi: onbellege yazma, sonraki denemede tekrar sor.
+                    DispatchQueue.main.async {
+                        self.storeLookupsInFlight.subtract(chunk)
+                    }
+                    return
+                }
+                
+                var found: [String: String] = [:]
+                for result in results {
+                    if let bundleID = result["bundleId"] as? String,
+                       let minimumOSVersion = result["minimumOsVersion"] as? String {
+                        found[bundleID] = minimumOSVersion
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    var updatedCache = self.loadStoreCache()
+                    let epoch = Int(Date().timeIntervalSince1970)
+                    
+                    for bundleID in chunk {
+                        let minimumOSVersion = found[bundleID] ?? ""
+                        updatedCache[bundleID] = "\(minimumOSVersion)|\(epoch)"
+                        
+                        if !minimumOSVersion.isEmpty {
+                            self.storeMinimumOS[bundleID] = minimumOSVersion
+                        }
+                    }
+                    
+                    self.saveStoreCache(updatedCache)
+                    self.storeLookupsInFlight.subtract(chunk)
+                }
+            }.resume()
+        }
+    }
+    
+    // UserDefaults'taki "minOS|epoch" bicimli onbellegi okur.
+    private func loadStoreCache() -> [String: String] {
+        return UserDefaults.standard.dictionary(forKey: storeCacheKey) as? [String: String] ?? [:]
+    }
+    
+    private func saveStoreCache(_ cache: [String: String]) {
+        UserDefaults.standard.set(cache, forKey: storeCacheKey)
+    }
+    
+    // Onbellek kaydindan minimum iOS surumunu cikarir (bos dize: App Store'da yok).
+    private func cachedStoreMinimumOS(_ entry: String?) -> String {
+        guard let entry = entry else { return "" }
+        return entry.components(separatedBy: "|").first ?? ""
+    }
+    
+    // Kaydin yasi TTL'i gectiyse (veya kayit bozuksa) tazeleme gerekir.
+    private func isStoreCacheEntryStale(_ entry: String?) -> Bool {
+        guard let entry = entry,
+              let epochString = entry.components(separatedBy: "|").dropFirst().first,
+              let epoch = Double(epochString) else { return true }
+        return Date().timeIntervalSince1970 - epoch > storeCacheTTL
     }
     
     func addRepo(_ repoURL: String, alertManager: AlertManager, completion: @escaping () -> Void) {

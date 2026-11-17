@@ -1,5 +1,5 @@
 diff --git a/TrollApps/TrollApps.xcodeproj/project.pbxproj b/TrollApps/TrollApps.xcodeproj/project.pbxproj
-index aea59ca..ddc09f3 100644
+index aea59ca..d85fc68 100644
 --- a/TrollApps/TrollApps.xcodeproj/project.pbxproj
 +++ b/TrollApps/TrollApps.xcodeproj/project.pbxproj
 @@ -103,6 +103,7 @@
@@ -31,7 +31,7 @@ index aea59ca..ddc09f3 100644
  					"$(PROJECT_DIR)/TrollApps",
  				);
 -				MARKETING_VERSION = 2.3;
-+				MARKETING_VERSION = 2.4;
++				MARKETING_VERSION = 2.5;
  				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -40,7 +40,7 @@ index aea59ca..ddc09f3 100644
  					"$(PROJECT_DIR)/TrollApps",
  				);
 -				MARKETING_VERSION = 2.3;
-+				MARKETING_VERSION = 2.4;
++				MARKETING_VERSION = 2.5;
  				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -83,7 +83,7 @@ index eb87897..fc1c53c 100644
      }
    ],
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..60c10ba 100644
+index ca8ec62..450fa89 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,9 @@
@@ -96,7 +96,7 @@ index ca8ec62..60c10ba 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +38,218 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +38,291 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -244,75 +244,148 @@ index ca8ec62..60c10ba 100644
 +    }
 +}
 +
-+// MARK: - Yenilikler akisi (Sileo tarzi)
-+// Repolar taranirken ilk kez gorulen paketler, ilk goruldugu anin zaman damgasi
-+// ile kaydedilir; "Yenilikler" sekmesi yalnizca kullanicinin SON GIRISINDEN
-+// beri eklenenleri listeler ve giriste kaydi tazeleyerek "okundu" isaretler.
++// MARK: - Yenilikler akisi (olay kaydi)
++// Her tarama, paketlerin surumunu onceki taramanin surumuyle karsilastirir.
++// Surumu degisenler "guncellendi", ilk kez gorulenler "eklendi" olayi olarak
++// kaydedilir. Ilk tarama yalnizca baz (baseline) olusturur; boylece ilk
++// kurulumda butun repolar "yeni" gibi listelenmez. Olayin zaman damgasi
++// tarama anidir; Yenilikler ekrani bu damgaya gore saat gruplari olusturur
++// (en yeni grup en ustte, onceki gruplar altinda).
++struct NewsEvent: Codable, Identifiable {
++    let bundleId: String
++    let version: String
++    let name: String
++    let repoName: String
++    // Olayin bulundugu taramanin zamani. Ayni taramadaki olaylar ayni degeri
++    // tasir; ekran bunlari tek bir saat grubunda toplar.
++    let scanEpoch: Double
++    // "updated" veya "added".
++    let kind: String
++
++    var id: String { bundleId + "|" + String(scanEpoch) + "|" + version }
++    var isUpdate: Bool { kind == "updated" }
++}
++
 +final class NewAppsManager: ObservableObject {
 +    static let shared = NewAppsManager()
 +
-+    private static let datesKey = "newAppDates"
-+    private static let lastViewedKey = "newAppsLastViewed"
-+    private static let maxEntries = 400
++    private static let versionsKey = "newAppVersions"
++    private static let eventsKey = "newsEvents"
++    private static let lastScanKey = "newsLastScan"
++    private static let maxEvents = 500
++    private static let maxVersions = 8000
 +
-+    @Published private(set) var dates: [String: Double]
++    // Surum karsilastirmasi icin son gorulen surumler (bundle id -> surum).
++    private var versions: [String: String] = [:]
 +
-+    // Kullanicinin "Yenilikler" sekmesine son baksigi an. Bu andan beri
-+    // eklenenler "yeni" sayilir.
-+    @Published private(set) var lastViewed: Double
++    // Taranan degisikliklerin kalici kaydi; ekran bunlari gruplar.
++    @Published private(set) var events: [NewsEvent]
++
++    // Son taramanin zamani. Ayni anda yeniden tarama yapilirken bekleme
++    // gostergesinin ne zaman kapanacagini anlamak icin kullanilir.
++    @Published private(set) var lastScan: Double
 +
 +    private init() {
 +        let defaults = UserDefaults.standard
-+        dates = defaults.dictionary(forKey: NewAppsManager.datesKey) as? [String: Double] ?? [:]
++        versions = defaults.dictionary(forKey: NewAppsManager.versionsKey) as? [String: String] ?? [:]
++        lastScan = defaults.double(forKey: NewAppsManager.lastScanKey)
 +
-+        lastViewed = defaults.double(forKey: NewAppsManager.lastViewedKey)
-+        if lastViewed == 0 {
-+            // Ilk kurulum: mevcut paketler baz (eski) olarak alinir; aksi halde
-+            // tum repolarin icerigi "yeni" gibi listelenirdi. Bu andan sonra
-+            // eklenen paketler yeni sayilir.
-+            lastViewed = Date().timeIntervalSince1970
-+            defaults.set(lastViewed, forKey: NewAppsManager.lastViewedKey)
++        if let data = defaults.data(forKey: NewAppsManager.eventsKey),
++           let decoded = try? JSONDecoder().decode([NewsEvent].self, from: data) {
++            events = decoded
++        } else {
++            events = []
 +        }
 +    }
 +
-+    // "Okundu" isareti: bu andan beri eklenenler bir sonraki girise yeni kalir.
-+    func markViewed() {
-+        lastViewed = Date().timeIntervalSince1970
-+        UserDefaults.standard.set(lastViewed, forKey: NewAppsManager.lastViewedKey)
-+    }
-+
-+    // Paket, belirtilen andan sonra mi eklendi?
-+    func isNew(_ bundleId: String, since cutoff: Double) -> Bool {
-+        guard let added = dates[bundleId] else { return false }
-+        return added > cutoff
-+    }
-+
-+    // Repolari tarar; daha once gorulmemis bundle id'leri kaydeder.
++    // Repolari tarar. Ilk tarama yalnizca baz olusturur; sonraki taramalarda
++    // surumu degisen her paket bir "guncellendi", ilk kez gorulen her paket
++    // bir "eklendi" olayi uretir. Degisiklik yoksa olay yazilmaz.
 +    func scan(_ repos: [RepoMemory]) {
-+        var updated = dates
 +        let now = Date().timeIntervalSince1970
-+        var changed = false
++        // Baz henuz kurulmadiysa (ilk tarama) olay uretme.
++        let isBaseline = versions.isEmpty
 +
++        var nextVersions = versions
++        var nextEvents = events
++        var versionsChanged = false
++
++        // Ayni paket birden fazla depoda bulunabilir. Paket basina tek kayit
++        // tutulur (ilk tanim esastir); aksi halde depolardaki farkli surumler
++        // her taramada sahte "guncellendi" olayi uretirdi.
++        var discovered: [String: (name: String, repoName: String, version: String)] = [:]
 +        for repo in repos {
++            let repoName = repo.data.name ?? "UNNAMED_REPO"
 +            for app in repo.data.apps {
 +                guard let id = app.bundleIdentifier, !id.isEmpty else { continue }
-+                if updated[id] == nil {
-+                    updated[id] = now
-+                    changed = true
++                let version = app.version ?? ""
++                if let existing = discovered[id] {
++                    if existing.version.isEmpty && !version.isEmpty {
++                        discovered[id] = (name: app.name, repoName: repoName, version: version)
++                    }
++                } else {
++                    discovered[id] = (name: app.name, repoName: repoName, version: version)
 +                }
 +            }
 +        }
 +
-+        guard changed else { return }
++        let seenIds = Set(discovered.keys)
 +
-+        // Kayitlar buyumesin: en yeni kayitlari tut, eskileri dusur.
-+        if updated.count > NewAppsManager.maxEntries {
-+            let newest = updated.sorted { $0.value > $1.value }.prefix(NewAppsManager.maxEntries)
-+            updated = Dictionary(uniqueKeysWithValues: newest.map { ($0.key, $0.value) })
++        for (id, info) in discovered {
++            let version = info.version
++
++            if let previous = nextVersions[id] {
++                // Surum ayni: yeni bir sey yok.
++                guard !version.isEmpty, version != previous else { continue }
++                nextVersions[id] = version
++                versionsChanged = true
++                if !isBaseline {
++                    nextEvents.append(NewsEvent(bundleId: id,
++                                                version: version,
++                                                name: info.name,
++                                                repoName: info.repoName,
++                                                scanEpoch: now,
++                                                kind: "updated"))
++                }
++            } else {
++                // Bu paket ilk kez goruluyor.
++                nextVersions[id] = version
++                versionsChanged = true
++                if !isBaseline {
++                    nextEvents.append(NewsEvent(bundleId: id,
++                                                version: version,
++                                                name: info.name,
++                                                repoName: info.repoName,
++                                                scanEpoch: now,
++                                                kind: "added"))
++                }
++            }
 +        }
 +
-+        dates = updated
-+        UserDefaults.standard.set(dates, forKey: NewAppsManager.datesKey)
++        lastScan = now
++        UserDefaults.standard.set(now, forKey: NewAppsManager.lastScanKey)
++
++        // Surum sozlugu asiri buyumesin: son taramada gorulenler oncelikli.
++        if nextVersions.count > NewAppsManager.maxVersions {
++            nextVersions = nextVersions.filter { seenIds.contains($0.key) }
++        }
++
++        if versionsChanged {
++            versions = nextVersions
++            UserDefaults.standard.set(versions, forKey: NewAppsManager.versionsKey)
++        }
++
++        guard nextEvents.count != events.count else { return }
++
++        // Olay gecmisi buyumesin: en yeni kayitlari tut.
++        if nextEvents.count > NewAppsManager.maxEvents {
++            nextEvents = Array(nextEvents.suffix(NewAppsManager.maxEvents))
++        }
++
++        events = nextEvents
++        if let data = try? JSONEncoder().encode(nextEvents) {
++            UserDefaults.standard.set(data, forKey: NewAppsManager.eventsKey)
++        }
 +    }
 +}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
@@ -540,7 +613,7 @@ index e76b617..cda6b9a 100644
          let dispatchGroup = DispatchGroup()
          
 diff --git a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
-index 128d738..c027419 100644
+index 128d738..a51e8a7 100644
 --- a/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 +++ b/TrollApps/TrollApps/Resources/en.lproj/Localizable.strings
 @@ -13,6 +13,11 @@
@@ -555,7 +628,7 @@ index 128d738..c027419 100644
  // Buttons
  "OPEN" = "OPEN";
  "GET" = "GET";
-@@ -149,3 +154,13 @@
+@@ -149,3 +154,16 @@
  "ERROR_REMOVING_EXISTING_IPA_FILE" = "Failed to remove IPA file from previous installation.";
  
  "ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "Failed to download / write IPA file";
@@ -568,13 +641,16 @@ index 128d738..c027419 100644
 +"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. Hidden apps stay hidden for good; they come back only when you unhide them from this list.";
 +
 +"WHATS_NEW" = "What's New";
-+"NO_NEW_APPS" = "No new apps yet. Newly added apps will appear here.";
++"NO_NEW_APPS" = "Nothing new yet. Apps added or updated in your repos appear here, grouped by scan time.";
++"NEWS_UPDATED" = "UPDATED";
++"NEWS_ADDED" = "NEW";
++"NEWS_GROUP_COUNT" = "%d changes";
 diff --git a/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
 new file mode 100644
-index 0000000..4d49b75
+index 0000000..a306d56
 --- /dev/null
 +++ b/TrollApps/TrollApps/Resources/tr.lproj/Localizable.strings
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,176 @@
 +/* 
 +  Localizable.strings
 +  TrollApps
@@ -747,8 +823,10 @@ index 0000000..4d49b75
 +"HIDDEN_APPS_TOOLTIP" = "Listelerden gizlediğiniz uygulamalar (ör. bu cihazda çalışmayan sürümler). Gizlenen uygulamalar bir daha çıkmaz; yalnızca bu listeden geri aldığınızda gösterilir.";
 +
 +"WHATS_NEW" = "Yenilikler";
-+"NO_NEW_APPS" = "Henüz yeni uygulama yok. Yeni eklenen uygulamalar burada görünecek.";
-\ No newline at end of file
++"NO_NEW_APPS" = "Henüz yeni bir şey yok. Depolarınızda eklenen veya güncellenen uygulamalar tarama saatine göre gruplanarak burada görünür.";
++"NEWS_UPDATED" = "GÜNCELLENDİ";
++"NEWS_ADDED" = "YENİ";
++"NEWS_GROUP_COUNT" = "%d değişiklik";
 diff --git a/TrollApps/TrollApps/Styles/Buttons.swift b/TrollApps/TrollApps/Styles/Buttons.swift
 index 06974a9..f1fb4ec 100644
 --- a/TrollApps/TrollApps/Styles/Buttons.swift
@@ -1190,126 +1268,186 @@ index 88ad243..10d4f6b 100644
          .blur(radius: alertManager.isAlertPresented ? userSettings.blurStrength : 0.1
          )
 diff --git a/TrollApps/TrollApps/Views/NewsView.swift b/TrollApps/TrollApps/Views/NewsView.swift
-index 09f52b2..a8f75fd 100644
+index 09f52b2..6ca76c1 100644
 --- a/TrollApps/TrollApps/Views/NewsView.swift
 +++ b/TrollApps/TrollApps/Views/NewsView.swift
-@@ -3,12 +3,173 @@
+@@ -3,12 +3,246 @@
  //  TrollApps
  //
  //  Created by Cleopatra on 2023-12-15.
-+//  Sileo'nun "Yenilikler" sekmesinden esinlenen akis: repolar icin ilk kez
-+//  gorulen paketler, ilk goruldugu tarihe gore gruplanarak listelenir.
++//  Sileo'nun "Yenilikler" sekmesinden esinlenen akis: repolar her tarandiginda
++//  surumu degisen / ilk kez gorulen paketler olay olarak kaydedilir. Ekran bu
++//  olaylari tarama saatine gore gruplar; en yeni tarama en ustte, onceki
++//  taramalar altinda listelenir. Asagi cekince repolar yeniden taranir.
  //
  
  import SwiftUI
 +import Kingfisher
 +
-+// Tarih grubu: "17 KASIM 2026 11:49" gibi bir baslik ve o ana dusen paketler.
-+private struct NewsGroup: Identifiable {
-+    let title: String
-+    let epoch: Double
-+    let apps: [Application]
-+    let repoNames: [String: String]
-+    var id: String { title }
++// Bir gruptaki tek satir: guncel uygulama bilgisi + olayin surumu.
++private struct NewsItem: Identifiable {
++    let app: Application
++    let event: NewsEvent
++    var id: String { event.id }
 +}
 +
-+// Tek paket satirinin baglamlari: uygulama ve depo adi.
-+private struct NewsRowContext: Identifiable {
-+    let app: Application
-+    let repoName: String
-+    var id: String { app.bundleIdentifier ?? app.id.uuidString }
++// Ayni taramada bulunan olaylarin grubu ("18 KASIM 2026 21:15" gibi).
++private struct NewsGroup: Identifiable {
++    let epoch: Double
++    let title: String
++    let items: [NewsItem]
++    var id: Double { epoch }
 +}
  
  struct NewsView: View {
-+    // Kayit degisince akis aninda yenilensin.
-+    @ObservedObject private var newApps = NewAppsManager.shared
++    // Olay kaydi degisince akis aninda yenilensin.
++    @ObservedObject private var news = NewAppsManager.shared
 +    @EnvironmentObject var repoManager: RepositoryManager
 +
-+    // Bu girişte hangi andan itibaren "yeni" gösterilecek: ekrana gelmeden
-+    // önceki son giriş zamanı. Girişle birlikte kayıt tazelenir, böylece
-+    // bir sonraki girişte yalnızca o andan beri eklenenler görünür.
-+    @State private var cutoff: Double = 0
++    @State private var isRefreshing = false
 +
      var body: some View {
 -        Text("Coming Soon.")
 +        NavigationView {
-+            List {
-+                if groups.isEmpty {
-+                    Text("NO_NEW_APPS")
-+                        .font(.caption)
-+                        .foregroundColor(.gray)
-+                } else {
-+                    ForEach(groups) { group in
-+                        Section(header:
-+                            // Sileo'daki gibi gri yuvarlak tarih rozeti.
-+                            Text(group.title)
-+                                .font(.caption.bold())
-+                                .padding(.horizontal, 10)
-+                                .padding(.vertical, 4)
-+                                .background(
-+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-+                                        .fill(Color(UIColor.systemGray5))
-+                                )
-+                        ) {
-+                            ForEach(group.apps, id: \.bundleIdentifier) { app in
-+                                NewsRow(app: app, repoName: group.repoNames[app.bundleIdentifier ?? ""] ?? "UNNAMED_REPO")
-+                            }
++            content
++                .navigationTitle("WHATS_NEW")
++                .toolbar {
++                    ToolbarItem(placement: .navigationBarTrailing) {
++                        Button(action: refreshNow) {
++                            Image(systemName: "arrow.clockwise")
 +                        }
++                        .disabled(isRefreshing)
 +                    }
 +                }
-+            }
-+            .listStyle(PlainListStyle())
-+            .navigationTitle("WHATS_NEW")
-+            .onAppear {
-+                cutoff = newApps.lastViewed
-+                newApps.markViewed()
-+            }
++                .onChange(of: news.lastScan) { _ in
++                    isRefreshing = false
++                }
 +        }
 +        .navigationViewStyle(.stack)
 +    }
 +
-+    // Yalnizca son giristen beri eklenen paketler; zamana gore gruplanir.
++    // Asagi cekerek yenileme iOS 15+; iOS 14'te araç çubuğundaki buton.
++    @ViewBuilder
++    private var content: some View {
++        if #available(iOS 15.0, *) {
++            newsList.refreshable { await performRefresh() }
++        } else {
++            newsList
++        }
++    }
++
++    private var newsList: some View {
++        List {
++            if groups.isEmpty {
++                Text("NO_NEW_APPS")
++                    .font(.caption)
++                    .foregroundColor(.gray)
++            } else {
++                ForEach(groups) { group in
++                    Section(header: header(for: group)) {
++                        ForEach(group.items) { item in
++                            NewsRow(app: item.app, event: item.event)
++                        }
++                    }
++                }
++            }
++        }
++        .listStyle(PlainListStyle())
++    }
++
++    // Sileo'daki gibi gri yuvarlak tarih rozeti + kac degisiklik oldugu.
++    private func header(for group: NewsGroup) -> some View {
++        HStack(spacing: 8) {
++            Text(group.title)
++                .font(.caption.bold())
++                .padding(.horizontal, 10)
++                .padding(.vertical, 4)
++                .background(
++                    RoundedRectangle(cornerRadius: 8, style: .continuous)
++                        .fill(Color(UIColor.systemGray5))
++                )
++
++            Text(String(format: NSLocalizedString("NEWS_GROUP_COUNT", comment: ""), group.items.count))
++                .font(.caption2)
++                .foregroundColor(.gray)
++
++            Spacer()
++        }
++        .textCase(nil)
++    }
++
++    // Araç çubuğundan yenileme (iOS 14 dahil her sürümde).
++    private func refreshNow() {
++        guard !isRefreshing else { return }
++        isRefreshing = true
++        repoManager.fetchRepos()
++        // Tarama 20 saniye içinde bitmezse göstergeyi kapat.
++        DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
++            isRefreshing = false
++        }
++    }
++
++    // Aşağı çekerek yenileme: tarama bitene kadar bekle.
++    @available(iOS 15.0, *)
++    private func performRefresh() async {
++        let before = news.lastScan
++        isRefreshing = true
++        repoManager.fetchRepos()
++
++        var waited = 0
++        while news.lastScan <= before && waited < 40 {
++            try? await Task.sleep(nanoseconds: 500_000_000)
++            waited += 1
++        }
++
++        await MainActor.run {
++            isRefreshing = false
++        }
++    }
++
++    // Olaylari tarama saatine gore gruplar. En yeni grup ustte; son 30 gunun
++    // kayitlari, en fazla 20 grup gosterilir.
 +    private var groups: [NewsGroup] {
-+        guard cutoff > 0 else { return [] }
++        guard !news.events.isEmpty else { return [] }
++
++        // bundle id -> guncel uygulama (detay sayfasi ve ikon icin).
++        var appsById: [String: Application] = [:]
++        for repo in repoManager.ReposData {
++            for app in repo.data.apps {
++                if let id = app.bundleIdentifier, appsById[id] == nil {
++                    appsById[id] = app
++                }
++            }
++        }
 +
 +        let formatter = DateFormatter()
 +        formatter.dateFormat = "d MMMM y HH:mm"
 +        formatter.locale = Locale.current
 +
-+        let visible = newApps.dates.filter { $0.value > cutoff }.sorted { $0.value > $1.value }
++        let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60).timeIntervalSince1970
 +
-+        var titles: [String: Double] = [:]
-+        var idsByTitle: [String: [String]] = [:]
-+
-+        for (bundleId, epoch) in visible {
-+            let title = formatter.string(from: Date(timeIntervalSince1970: epoch)).uppercased(with: Locale.current)
-+            titles[title] = epoch
-+            idsByTitle[title, default: []].append(bundleId)
-+        }
-+
-+        // Paketleri depolar arasinda tek tek coz (bundle id -> Application + depo adi).
-+        var appCache: [String: (Application, String)] = [:]
-+        for repo in repoManager.ReposData {
-+            for app in repo.data.apps {
-+                if let id = app.bundleIdentifier, appCache[id] == nil {
-+                    appCache[id] = (app, repo.data.name ?? "UNNAMED_REPO")
-+                }
-+            }
++        var byEpoch: [Double: [NewsEvent]] = [:]
++        for event in news.events where event.scanEpoch >= cutoff {
++            byEpoch[event.scanEpoch, default: []].append(event)
 +        }
 +
 +        var result: [NewsGroup] = []
-+        for (title, epoch) in titles.sorted(by: { $0.value > $1.value }) {
-+            var apps: [Application] = []
-+            var repoNames: [String: String] = [:]
-+            for id in idsByTitle[title] ?? [] {
-+                if let (app, repoName) = appCache[id] {
-+                    apps.append(app)
-+                    repoNames[id] = repoName
-+                }
++        for (epoch, events) in byEpoch.sorted(by: { $0.key > $1.key }).prefix(20) {
++            let items = events.compactMap { event -> NewsItem? in
++                guard let app = appsById[event.bundleId] else { return nil }
++                return NewsItem(app: app, event: event)
++            }.sorted {
++                $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending
 +            }
-+            if !apps.isEmpty {
-+                result.append(NewsGroup(title: title, epoch: epoch, apps: apps, repoNames: repoNames))
-+            }
++
++            guard !items.isEmpty else { continue }
++
++            result.append(NewsGroup(
++                epoch: epoch,
++                title: formatter.string(from: Date(timeIntervalSince1970: epoch))
++                    .uppercased(with: Locale.current),
++                items: items
++            ))
 +        }
 +
 +        return result
@@ -1317,10 +1455,11 @@ index 09f52b2..a8f75fd 100644
 +}
 +
 +// Sileo tarzi satir: ikon + vurgu renginde nokta ve ad, "gelistirici • surum •
-+// depo" satiri, aciklama. Satira dokununca uygulama detay sayfasi acilir.
++// depo" satiri, aciklama. Satirdaki surum, guncellemenin geldigi surumdur.
++// Satira dokununca uygulama detay sayfasi acilir.
 +private struct NewsRow: View {
 +    let app: Application
-+    let repoName: String
++    let event: NewsEvent
 +
 +    var body: some View {
 +        NavigationLink(destination: AppDetailsView(appDetails: app)) {
@@ -1344,14 +1483,26 @@ index 09f52b2..a8f75fd 100644
 +                        Circle()
 +                            .fill(Color("AccentColor"))
 +                            .frame(width: 8, height: 8)
++
 +                        Text(app.name)
 +                            .font(.body.bold())
++                            .foregroundColor(Color("AccentColor"))
++
++                        Spacer(minLength: 4)
++
++                        Text(event.isUpdate ? "NEWS_UPDATED" : "NEWS_ADDED")
++                            .font(.system(size: 9, weight: .bold))
++                            .padding(.horizontal, 6)
++                            .padding(.vertical, 2)
++                            .background(
++                                Capsule().fill(Color("AccentColor").opacity(0.18))
++                            )
 +                            .foregroundColor(Color("AccentColor"))
 +                    }
 +
 +                    let devName = (app.developerName ?? "").isEmpty ? "" : app.developerName! + " • "
-+                    let version = (app.version ?? "").isEmpty ? "" : app.version! + " • "
-+                    Text(devName + version + repoName)
++                    let version = event.version.isEmpty ? "" : event.version + " • "
++                    Text(devName + version + event.repoName)
 +                        .font(.caption)
 +                        .foregroundColor(.gray)
 +                        .lineLimit(1)

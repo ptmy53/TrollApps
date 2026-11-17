@@ -13,6 +13,11 @@
 "APPS" = "Apps";
 "SETTINGS" = "Settings";
 
+// Browse list sections
+"UPDATES" = "Updates";
+"ALL_APPS" = "All Apps";
+"NO_UPDATES" = "No updates available";
+
 // Buttons
 "OPEN" = "OPEN";
 "GET" = "GET";
@@ -149,3 +154,16 @@
 "ERROR_REMOVING_EXISTING_IPA_FILE" = "Failed to remove IPA file from previous installation.";
 
 "ERROR_DOWNLOADING_AND_WRITING_IPA_FILE" = "Failed to download / write IPA file";
+"IOS_VERSION_TOO_LOW" = "Needs a newer iOS version";
+
+"HIDE_APP" = "Hide";
+"UNHIDE_APP" = "Show again";
+"HIDDEN_APPS" = "Hidden apps";
+"NO_HIDDEN_APPS" = "No hidden apps";
+"HIDDEN_APPS_TOOLTIP" = "Apps you hid from the lists, for example builds that do not run on this device. Hidden apps stay hidden for good; they come back only when you unhide them from this list.";
+
+"WHATS_NEW" = "What's New";
+"NO_NEW_APPS" = "Nothing new yet. Apps added or updated in your repos appear here, grouped by scan time.";
+"NEWS_UPDATED" = "UPDATED";
+"NEWS_ADDED" = "NEW";
+"NEWS_GROUP_COUNT" = "%d changes";
