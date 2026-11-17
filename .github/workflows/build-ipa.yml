@@ -12,7 +12,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # macos-15 havuzunda runner'lar saatlerce ayağa kalkmadigindan yeni
+    # macOS goruntusune (farkli kapasite havuzu) gecildi.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
