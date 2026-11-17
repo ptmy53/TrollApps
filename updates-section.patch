@@ -65,7 +65,7 @@ index eb87897..fc1c53c 100644
      }
    ],
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..4a43098 100644
+index ca8ec62..60c10ba 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,9 @@
@@ -78,7 +78,7 @@ index ca8ec62..4a43098 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +38,190 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +38,218 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -228,17 +228,45 @@ index ca8ec62..4a43098 100644
 +
 +// MARK: - Yenilikler akisi (Sileo tarzi)
 +// Repolar taranirken ilk kez gorulen paketler, ilk goruldugu anin zaman damgasi
-+// ile kaydedilir; "Yenilikler" sekmesi bu kayitlari tarihe gore gruplar.
++// ile kaydedilir; "Yenilikler" sekmesi yalnizca kullanicinin SON GIRISINDEN
++// beri eklenenleri listeler ve giriste kaydi tazeleyerek "okundu" isaretler.
 +final class NewAppsManager: ObservableObject {
 +    static let shared = NewAppsManager()
 +
-+    private static let storageKey = "newAppDates"
++    private static let datesKey = "newAppDates"
++    private static let lastViewedKey = "newAppsLastViewed"
 +    private static let maxEntries = 400
 +
 +    @Published private(set) var dates: [String: Double]
 +
++    // Kullanicinin "Yenilikler" sekmesine son baksigi an. Bu andan beri
++    // eklenenler "yeni" sayilir.
++    @Published private(set) var lastViewed: Double
++
 +    private init() {
-+        dates = UserDefaults.standard.dictionary(forKey: NewAppsManager.storageKey) as? [String: Double] ?? [:]
++        let defaults = UserDefaults.standard
++        dates = defaults.dictionary(forKey: NewAppsManager.datesKey) as? [String: Double] ?? [:]
++
++        lastViewed = defaults.double(forKey: NewAppsManager.lastViewedKey)
++        if lastViewed == 0 {
++            // Ilk kurulum: mevcut paketler baz (eski) olarak alinir; aksi halde
++            // tum repolarin icerigi "yeni" gibi listelenirdi. Bu andan sonra
++            // eklenen paketler yeni sayilir.
++            lastViewed = Date().timeIntervalSince1970
++            defaults.set(lastViewed, forKey: NewAppsManager.lastViewedKey)
++        }
++    }
++
++    // "Okundu" isareti: bu andan beri eklenenler bir sonraki girise yeni kalir.
++    func markViewed() {
++        lastViewed = Date().timeIntervalSince1970
++        UserDefaults.standard.set(lastViewed, forKey: NewAppsManager.lastViewedKey)
++    }
++
++    // Paket, belirtilen andan sonra mi eklendi?
++    func isNew(_ bundleId: String, since cutoff: Double) -> Bool {
++        guard let added = dates[bundleId] else { return false }
++        return added > cutoff
 +    }
 +
 +    // Repolari tarar; daha once gorulmemis bundle id'leri kaydeder.
@@ -266,7 +294,7 @@ index ca8ec62..4a43098 100644
 +        }
 +
 +        dates = updated
-+        UserDefaults.standard.set(dates, forKey: NewAppsManager.storageKey)
++        UserDefaults.standard.set(dates, forKey: NewAppsManager.datesKey)
 +    }
 +}
 diff --git a/TrollApps/TrollApps/Managers/InstallManager.swift b/TrollApps/TrollApps/Managers/InstallManager.swift
@@ -1098,26 +1126,29 @@ index c45a8d7..a340cf5 100644
                                  ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
                                      AppCell(app: app, showFullMode: false)
 diff --git a/TrollApps/TrollApps/Views/NavView.swift b/TrollApps/TrollApps/Views/NavView.swift
-index 88ad243..f09c8e1 100644
+index 88ad243..10d4f6b 100644
 --- a/TrollApps/TrollApps/Views/NavView.swift
 +++ b/TrollApps/TrollApps/Views/NavView.swift
-@@ -10,7 +10,9 @@ import SwiftUIIntrospect
+@@ -10,6 +10,7 @@ import SwiftUIIntrospect
  
  struct NavView: View {
      
--    @State private var selectedTab = 0
-+    // Uygulama acilirken "Gozat" sekmesi (;=3) acik gelir: guncellemesi olan
-+    // uygulamalar hemen gorunur, "One Cikarlar" icin dokunmak yeter.
-+    @State private var selectedTab = 3
++    // Uygulama acilirken "One Cikarlar" sekmesi (tag 0) acik gelir.
+     @State private var selectedTab = 0
      @EnvironmentObject var alertManager: AlertManager
      @EnvironmentObject var userSettings: UserSettings
-     @EnvironmentObject var queueManager: QueueManager
-@@ -23,12 +25,16 @@ struct NavView: View {
-                 QueueManagerView(content: SourcesView()).tag(1).tabItem { Label("REPOS", systemImage: "shippingbox") }
-                 QueueManagerView(content: AppsView()).tag(2).tabItem { Label("APPS", systemImage: "app") }
-                 QueueManagerView(content: BrowseView()).tag(3).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
-+                QueueManagerView(content: NewsView()).tag(4).tabItem { Label("WHATS_NEW", systemImage: "newspaper.fill") }
-                 //            QueueManagerView(content: NewsView()).tag(1).tabItem { Label("NEWS", systemImage: "newspaper.fill") }
+@@ -20,15 +21,18 @@ struct NavView: View {
+             
+             TabView(selection: $selectedTab) {
+                 QueueManagerView(content: FeaturedView()).tag(0).tabItem { Label("FEATURED", systemImage: "star.fill") }
+-                QueueManagerView(content: SourcesView()).tag(1).tabItem { Label("REPOS", systemImage: "shippingbox") }
+-                QueueManagerView(content: AppsView()).tag(2).tabItem { Label("APPS", systemImage: "app") }
+-                QueueManagerView(content: BrowseView()).tag(3).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
+-                //            QueueManagerView(content: NewsView()).tag(1).tabItem { Label("NEWS", systemImage: "newspaper.fill") }
++                QueueManagerView(content: NewsView()).tag(1).tabItem { Label("WHATS_NEW", systemImage: "newspaper.fill") }
++                QueueManagerView(content: BrowseView()).tag(2).tabItem { Label("BROWSE", systemImage: "magnifyingglass") }
++                QueueManagerView(content: SourcesView()).tag(3).tabItem { Label("REPOS", systemImage: "shippingbox") }
++                QueueManagerView(content: AppsView()).tag(4).tabItem { Label("APPS", systemImage: "app") }
              }
              .introspect(.tabView, on: .iOS(.v14, .v15, .v16, .v17)) { tabView in
                  tabView.tabBar.isHidden = !queueManager.canClose
@@ -1130,11 +1161,21 @@ index 88ad243..f09c8e1 100644
                  let tabBarAppearance: UITabBarAppearance = UITabBarAppearance()
                  tabBarAppearance.configureWithDefaultBackground()
                  
+@@ -40,7 +44,8 @@ struct NavView: View {
+             }
+         }
+         .onOpenURL { url in
+-            selectedTab = 1
++            // Kaynak ekleme baglantisi: Depolar sekmesini ac.
++            selectedTab = 3
+         }
+         .blur(radius: alertManager.isAlertPresented ? userSettings.blurStrength : 0.1
+         )
 diff --git a/TrollApps/TrollApps/Views/NewsView.swift b/TrollApps/TrollApps/Views/NewsView.swift
-index 09f52b2..3da9bdf 100644
+index 09f52b2..a8f75fd 100644
 --- a/TrollApps/TrollApps/Views/NewsView.swift
 +++ b/TrollApps/TrollApps/Views/NewsView.swift
-@@ -3,12 +3,164 @@
+@@ -3,12 +3,173 @@
  //  TrollApps
  //
  //  Created by Cleopatra on 2023-12-15.
@@ -1166,6 +1207,11 @@ index 09f52b2..3da9bdf 100644
 +    @ObservedObject private var newApps = NewAppsManager.shared
 +    @EnvironmentObject var repoManager: RepositoryManager
 +
++    // Bu girişte hangi andan itibaren "yeni" gösterilecek: ekrana gelmeden
++    // önceki son giriş zamanı. Girişle birlikte kayıt tazelenir, böylece
++    // bir sonraki girişte yalnızca o andan beri eklenenler görünür.
++    @State private var cutoff: Double = 0
++
      var body: some View {
 -        Text("Coming Soon.")
 +        NavigationView {
@@ -1196,24 +1242,28 @@ index 09f52b2..3da9bdf 100644
 +            }
 +            .listStyle(PlainListStyle())
 +            .navigationTitle("WHATS_NEW")
++            .onAppear {
++                cutoff = newApps.lastViewed
++                newApps.markViewed()
++            }
 +        }
 +        .navigationViewStyle(.stack)
 +    }
 +
-+    // Kayitlari zamana gore gruplar: her farkli tarihe (dakika hassasiyetiyle)
-+    // o ana ilk kez gorulen paketler girer, en yeni grup en ustte.
++    // Yalnizca son giristen beri eklenen paketler; zamana gore gruplanir.
 +    private var groups: [NewsGroup] {
++        guard cutoff > 0 else { return [] }
++
 +        let formatter = DateFormatter()
 +        formatter.dateFormat = "d MMMM y HH:mm"
 +        formatter.locale = Locale.current
 +
-+        var sorted = newApps.dates.sorted { $0.value > $1.value }
-+        sorted.removeAll { $0.key.isEmpty }
++        let visible = newApps.dates.filter { $0.value > cutoff }.sorted { $0.value > $1.value }
 +
 +        var titles: [String: Double] = [:]
 +        var idsByTitle: [String: [String]] = [:]
 +
-+        for (bundleId, epoch) in sorted {
++        for (bundleId, epoch) in visible {
 +            let title = formatter.string(from: Date(timeIntervalSince1970: epoch)).uppercased(with: Locale.current)
 +            titles[title] = epoch
 +            idsByTitle[title, default: []].append(bundleId)
