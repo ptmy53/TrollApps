@@ -152,6 +152,13 @@ jobs:
           ls -la "$RUNNER_TEMP/TrollApps-updates.ipa"
           shasum -a 256 "$RUNNER_TEMP/TrollApps-updates.ipa"
 
+      - name: Resolve app version
+        run: |
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/TrollApps.app"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
+          echo "app version: $VERSION"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - uses: actions/upload-artifact@v4
         with:
           name: TrollApps-updates-ipa
@@ -162,10 +169,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="updates-build-${{ github.run_number }}"
+          # Yayin etiketi, uygulamanin kendisinin surum sayisidir (2.4, 2.5, ...).
+          TAG="$APP_VERSION"
+          # Ayni surumun eski yayini temizle (yeni notlarla taze baslasin).
+          gh release delete "$TAG" --repo "${{ github.repository }}" --yes --cleanup-tag || true
           gh release create "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" \
             --repo "${{ github.repository }}" \
-            --title "TrollApps 2.3 with Updates section (build ${{ github.run_number }})" \
-            --notes "TrollApps built from upstream source with an 'Updates' section at the top of the Browse list. Updates are filtered by iOS compatibility: repository minOSVersion/maxOSVersion metadata wins whenever a source declares it (so an older version that still runs on your iOS is offered instead of dropping the app), the App Store minimum iOS (Compatibility) value is used as a fallback for installed apps whose source declares nothing, and the downloaded IPA's Info.plist is checked before installing. Includes a Turkish localization. Install with TrollStore." \
-            || gh release upload "$TAG" "$RUNNER_TEMP/TrollApps-updates.ipa" --repo "${{ github.repository }}" --clobber
+            --title "TrollApps $APP_VERSION" \
+            --notes-file "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
           gh release view "$TAG" --repo "${{ github.repository }}" --json url -q .url
