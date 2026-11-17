@@ -14,7 +14,13 @@ struct TrollAppsApp: App {
     @StateObject private var queueManager = QueueManager()
     
     @StateObject private var userSettings = UserSettings()
-    
+
+    // Uygulama arka plandan geri geldiginde repolari yeniden taramak icin:
+    // "Yenilikler" gruplari her acilista guncel saatle olussun. Cok sik
+    // taramamak icin son taramadan 60 saniye gecmesi beklenir.
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var lastForegroundScan: Date = .distantPast
+
     var body: some Scene {
         WindowGroup {
             ChangelogManagerView(
@@ -35,7 +41,16 @@ struct TrollAppsApp: App {
                 if !repoManager.hasFetchedRepos {
                     repoManager.fetchRepos()
                 }
+                lastForegroundScan = Date()
                 clearTmpFolder()
+            }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active else { return }
+                // Ilk acilis onAppear'da tarandi; sonraki on plana donuslerde
+                // (en az 60 sn sonra) yeniden tara.
+                guard Date().timeIntervalSince(lastForegroundScan) > 60 else { return }
+                lastForegroundScan = Date()
+                repoManager.fetchRepos()
             }
         }
     }

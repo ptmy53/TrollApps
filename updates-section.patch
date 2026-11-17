@@ -881,6 +881,43 @@ index 06974a9..f1fb4ec 100644
      case "gray":
          foregroundColor = Color.accentColor
          fill = Color.gray
+diff --git a/TrollApps/TrollApps/TrollAppsApp.swift b/TrollApps/TrollApps/TrollAppsApp.swift
+index 0fb465d..462e90f 100644
+--- a/TrollApps/TrollApps/TrollAppsApp.swift
++++ b/TrollApps/TrollApps/TrollAppsApp.swift
+@@ -14,7 +14,13 @@ struct TrollAppsApp: App {
+     @StateObject private var queueManager = QueueManager()
+     
+     @StateObject private var userSettings = UserSettings()
+-    
++
++    // Uygulama arka plandan geri geldiginde repolari yeniden taramak icin:
++    // "Yenilikler" gruplari her acilista guncel saatle olussun. Cok sik
++    // taramamak icin son taramadan 60 saniye gecmesi beklenir.
++    @Environment(\.scenePhase) private var scenePhase
++    @State private var lastForegroundScan: Date = .distantPast
++
+     var body: some Scene {
+         WindowGroup {
+             ChangelogManagerView(
+@@ -35,8 +41,17 @@ struct TrollAppsApp: App {
+                 if !repoManager.hasFetchedRepos {
+                     repoManager.fetchRepos()
+                 }
++                lastForegroundScan = Date()
+                 clearTmpFolder()
+             }
++            .onChange(of: scenePhase) { phase in
++                guard phase == .active else { return }
++                // Ilk acilis onAppear'da tarandi; sonraki on plana donuslerde
++                // (en az 60 sn sonra) yeniden tara.
++                guard Date().timeIntervalSince(lastForegroundScan) > 60 else { return }
++                lastForegroundScan = Date()
++                repoManager.fetchRepos()
++            }
+         }
+     }
+ }
 diff --git a/TrollApps/TrollApps/Views/AppsView.swift b/TrollApps/TrollApps/Views/AppsView.swift
 index 8ac616e..a5e5e62 100644
 --- a/TrollApps/TrollApps/Views/AppsView.swift
