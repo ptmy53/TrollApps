@@ -139,46 +139,127 @@ func shouldCheckStoreCompatibility(for version: Version, in versions: [Version]?
     return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
 }
 
-// MARK: - Gizlenen uygulamalar (isim bazli)
-// Ayni isme sahip TUM uygulamalar birlikte gizlenir. Kayitlar UserDefaults'ta
-// "hiddenAppNames" anahtarinda bir dizi olarak tutulur. Sinif ObservableObject
-// oldugu icin gizleme/geri alma aninda listeyi yeniler (onceden UserDefaults'a
-// yazmak gorunumu tetiklemiyordu, bu yuzden Gizle calismiyor gibi gorunuyordu).
+// MARK: - Gizlenen uygulamalar (isim + bundle id)
+// Kayitlar isim ve bundle id ciftini birlikte tutar. Guncelleme uygulamanin
+// adini degistirse bile bundle id sayesinde gizli kalir; ayni isme sahip tum
+// kopyalar birlikte gizlenir. Eski surumun yalnizca isim tutan
+// "hiddenAppNames" kayitlari ilk acilista otomatik olarak tasinir.
+struct HiddenAppEntry: Codable, Equatable {
+    let name: String
+    let bundleId: String?
+}
+
 final class HiddenAppsManager: ObservableObject {
     static let shared = HiddenAppsManager()
 
-    private static let storageKey = "hiddenAppNames"
+    private static let entriesKey = "hiddenAppEntries"
+    private static let legacyNamesKey = "hiddenAppNames"
 
-    @Published private(set) var names: [String]
+    @Published private(set) var entries: [HiddenAppEntry]
 
     private init() {
-        names = UserDefaults.standard.stringArray(forKey: HiddenAppsManager.storageKey) ?? []
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: HiddenAppsManager.entriesKey),
+           let decoded = try? JSONDecoder().decode([HiddenAppEntry].self, from: data) {
+            entries = decoded
+        } else {
+            // Eski surumden (yalnizca isim) tasima.
+            let legacy = defaults.stringArray(forKey: HiddenAppsManager.legacyNamesKey) ?? []
+            entries = legacy.map { HiddenAppEntry(name: $0, bundleId: nil) }
+            if !legacy.isEmpty {
+                persist()
+            }
+        }
     }
 
-    func isHidden(_ name: String) -> Bool {
-        return names.contains(name)
+    // Gizli ekraninda gosterilecek tekil isimler (kayit sirasi korunur).
+    var names: [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for entry in entries where !seen.contains(entry.name) {
+            seen.insert(entry.name)
+            result.append(entry.name)
+        }
+        return result
     }
 
-    func hide(name: String) {
+    // Isim eslesirse veya bundle id eslesirse uygulama gizlidir.
+    func isHidden(_ name: String, bundleId: String? = nil) -> Bool {
+        let id = (bundleId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.contains { entry in
+            if entry.name == name { return true }
+            if !id.isEmpty, let stored = entry.bundleId, stored == id { return true }
+            return false
+        }
+    }
+
+    func hide(name: String, bundleId: String? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !names.contains(trimmed) else { return }
-        names.append(trimmed)
+        guard !trimmed.isEmpty else { return }
+        let id = (bundleId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Ayni isim zaten gizliyse yalnizca bundle id kaydini tamamla; ayni
+        // isimli baska kopyalar icin ek kayit tut.
+        if entries.contains(where: { $0.name == trimmed }) {
+            if !id.isEmpty, !entries.contains(where: { $0.name == trimmed && $0.bundleId == id }) {
+                entries.append(HiddenAppEntry(name: trimmed, bundleId: id))
+                persist()
+            }
+            return
+        }
+
+        entries.append(HiddenAppEntry(name: trimmed, bundleId: id.isEmpty ? nil : id))
         persist()
     }
 
+    // Repo iceriginden gizli isimlerin bundle id'lerini ogrenir. Boylece
+    // uygulama guncellemeyle adini degistirse bile gizli kalir. Eski surumden
+    // tasinan isim-only kayitlar ilk taramada tamamlanir.
+    func learnBundleIds(from apps: [Application]) {
+        let missingNames = Set(entries.filter { $0.bundleId == nil }.map { $0.name })
+        guard !missingNames.isEmpty else { return }
+
+        var changed = false
+        for name in missingNames {
+            for app in apps where app.name == name {
+                guard let id = app.bundleIdentifier, !id.isEmpty else { continue }
+                if entries.contains(where: { $0.name == name && $0.bundleId == id }) { continue }
+
+                if let index = entries.firstIndex(where: { $0.name == name && $0.bundleId == nil }) {
+                    entries[index] = HiddenAppEntry(name: name, bundleId: id)
+                } else {
+                    entries.append(HiddenAppEntry(name: name, bundleId: id))
+                }
+                changed = true
+            }
+        }
+
+        if changed {
+            persist()
+        }
+    }
+
+    // Bu isimdeki tum kayitlari (ve varsa bundle id kopyalarini) geri getirir.
     func unhide(name: String) {
-        names.removeAll { $0 == name }
-        persist()
+        let before = entries.count
+        entries.removeAll { $0.name == name }
+        if entries.count != before {
+            persist()
+        }
     }
 
     func unhideAll() {
-        guard !names.isEmpty else { return }
-        names.removeAll()
+        guard !entries.isEmpty else { return }
+        entries.removeAll()
         persist()
     }
 
     private func persist() {
-        UserDefaults.standard.set(names, forKey: HiddenAppsManager.storageKey)
+        if let data = try? JSONEncoder().encode(entries) {
+            UserDefaults.standard.set(data, forKey: HiddenAppsManager.entriesKey)
+        }
+        // Eski anahtar da guncel tutulur (geriye uyumluluk).
+        UserDefaults.standard.set(names, forKey: HiddenAppsManager.legacyNamesKey)
     }
 }
 

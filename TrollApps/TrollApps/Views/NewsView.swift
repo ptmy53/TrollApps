@@ -31,6 +31,8 @@ struct NewsView: View {
     // Olay kaydi degisince akis aninda yenilensin.
     @ObservedObject private var news = NewAppsManager.shared
     @EnvironmentObject var repoManager: RepositoryManager
+    // Gizlenen uygulamalar Yenilikler akisinda da gorunmesin.
+    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
 
     @State private var isRefreshing = false
 
@@ -161,7 +163,8 @@ struct NewsView: View {
         var result: [NewsGroup] = []
         for (epoch, events) in byEpoch.sorted(by: { $0.key > $1.key }).prefix(20) {
             let items = events.compactMap { event -> NewsItem? in
-                guard let app = appsById[event.bundleId] else { return nil }
+                guard let app = appsById[event.bundleId],
+                      !hiddenApps.isHidden(app.name, bundleId: app.bundleIdentifier) else { return nil }
                 return NewsItem(app: app, event: event)
             }.sorted {
                 $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending

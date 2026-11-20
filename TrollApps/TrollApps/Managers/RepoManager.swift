@@ -154,6 +154,9 @@ class RepositoryManager: ObservableObject {
             
             // Yenilikler akisi: repoda ilk kez gorulen paketleri kaydet.
             NewAppsManager.shared.scan(fetchedResults)
+
+            // Gizli isimlerin bundle id'lerini ogren (ad degisikligine karsi).
+            HiddenAppsManager.shared.learnBundleIds(from: fetchedResults.flatMap { $0.data.apps })
             
             let bundleIDs = fetchedResults.flatMap { $0.data.apps }.compactMap { $0.bundleIdentifier }.filter { self.IsAppInstalled($0) }
             self.refreshStoreMinimumOS(for: bundleIDs)

@@ -1,5 +1,5 @@
 diff --git a/TrollApps/TrollApps.xcodeproj/project.pbxproj b/TrollApps/TrollApps.xcodeproj/project.pbxproj
-index aea59ca..d85fc68 100644
+index aea59ca..18c2a3b 100644
 --- a/TrollApps/TrollApps.xcodeproj/project.pbxproj
 +++ b/TrollApps/TrollApps.xcodeproj/project.pbxproj
 @@ -103,6 +103,7 @@
@@ -31,7 +31,7 @@ index aea59ca..d85fc68 100644
  					"$(PROJECT_DIR)/TrollApps",
  				);
 -				MARKETING_VERSION = 2.3;
-+				MARKETING_VERSION = 2.5;
++				MARKETING_VERSION = 2.6;
  				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -40,7 +40,7 @@ index aea59ca..d85fc68 100644
  					"$(PROJECT_DIR)/TrollApps",
  				);
 -				MARKETING_VERSION = 2.3;
-+				MARKETING_VERSION = 2.5;
++				MARKETING_VERSION = 2.6;
  				PRODUCT_BUNDLE_IDENTIFIER = org.resonance.store;
  				PRODUCT_NAME = "$(TARGET_NAME)";
  				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -83,7 +83,7 @@ index eb87897..fc1c53c 100644
      }
    ],
 diff --git a/TrollApps/TrollApps/Functions/Repos.swift b/TrollApps/TrollApps/Functions/Repos.swift
-index ca8ec62..450fa89 100644
+index ca8ec62..06e71c2 100644
 --- a/TrollApps/TrollApps/Functions/Repos.swift
 +++ b/TrollApps/TrollApps/Functions/Repos.swift
 @@ -5,6 +5,9 @@
@@ -96,7 +96,7 @@ index ca8ec62..450fa89 100644
  func reposEncode(reposUrl: [String]) -> String {
      let repoUrlString = reposUrl.map { ($0) }.joined(separator: ",")
      
-@@ -35,3 +38,291 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
+@@ -35,3 +38,372 @@ func compareVersions(_ version1: String, _ version2: String) -> Bool {
      
      return components1.count >= components2.count
  }
@@ -201,46 +201,127 @@ index ca8ec62..450fa89 100644
 +    return !hasOSBound(bounds.minOSVersion) && !hasOSBound(bounds.maxOSVersion)
 +}
 +
-+// MARK: - Gizlenen uygulamalar (isim bazli)
-+// Ayni isme sahip TUM uygulamalar birlikte gizlenir. Kayitlar UserDefaults'ta
-+// "hiddenAppNames" anahtarinda bir dizi olarak tutulur. Sinif ObservableObject
-+// oldugu icin gizleme/geri alma aninda listeyi yeniler (onceden UserDefaults'a
-+// yazmak gorunumu tetiklemiyordu, bu yuzden Gizle calismiyor gibi gorunuyordu).
++// MARK: - Gizlenen uygulamalar (isim + bundle id)
++// Kayitlar isim ve bundle id ciftini birlikte tutar. Guncelleme uygulamanin
++// adini degistirse bile bundle id sayesinde gizli kalir; ayni isme sahip tum
++// kopyalar birlikte gizlenir. Eski surumun yalnizca isim tutan
++// "hiddenAppNames" kayitlari ilk acilista otomatik olarak tasinir.
++struct HiddenAppEntry: Codable, Equatable {
++    let name: String
++    let bundleId: String?
++}
++
 +final class HiddenAppsManager: ObservableObject {
 +    static let shared = HiddenAppsManager()
 +
-+    private static let storageKey = "hiddenAppNames"
++    private static let entriesKey = "hiddenAppEntries"
++    private static let legacyNamesKey = "hiddenAppNames"
 +
-+    @Published private(set) var names: [String]
++    @Published private(set) var entries: [HiddenAppEntry]
 +
 +    private init() {
-+        names = UserDefaults.standard.stringArray(forKey: HiddenAppsManager.storageKey) ?? []
++        let defaults = UserDefaults.standard
++        if let data = defaults.data(forKey: HiddenAppsManager.entriesKey),
++           let decoded = try? JSONDecoder().decode([HiddenAppEntry].self, from: data) {
++            entries = decoded
++        } else {
++            // Eski surumden (yalnizca isim) tasima.
++            let legacy = defaults.stringArray(forKey: HiddenAppsManager.legacyNamesKey) ?? []
++            entries = legacy.map { HiddenAppEntry(name: $0, bundleId: nil) }
++            if !legacy.isEmpty {
++                persist()
++            }
++        }
 +    }
 +
-+    func isHidden(_ name: String) -> Bool {
-+        return names.contains(name)
++    // Gizli ekraninda gosterilecek tekil isimler (kayit sirasi korunur).
++    var names: [String] {
++        var seen = Set<String>()
++        var result: [String] = []
++        for entry in entries where !seen.contains(entry.name) {
++            seen.insert(entry.name)
++            result.append(entry.name)
++        }
++        return result
 +    }
 +
-+    func hide(name: String) {
++    // Isim eslesirse veya bundle id eslesirse uygulama gizlidir.
++    func isHidden(_ name: String, bundleId: String? = nil) -> Bool {
++        let id = (bundleId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++        return entries.contains { entry in
++            if entry.name == name { return true }
++            if !id.isEmpty, let stored = entry.bundleId, stored == id { return true }
++            return false
++        }
++    }
++
++    func hide(name: String, bundleId: String? = nil) {
 +        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-+        guard !trimmed.isEmpty, !names.contains(trimmed) else { return }
-+        names.append(trimmed)
++        guard !trimmed.isEmpty else { return }
++        let id = (bundleId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
++
++        // Ayni isim zaten gizliyse yalnizca bundle id kaydini tamamla; ayni
++        // isimli baska kopyalar icin ek kayit tut.
++        if entries.contains(where: { $0.name == trimmed }) {
++            if !id.isEmpty, !entries.contains(where: { $0.name == trimmed && $0.bundleId == id }) {
++                entries.append(HiddenAppEntry(name: trimmed, bundleId: id))
++                persist()
++            }
++            return
++        }
++
++        entries.append(HiddenAppEntry(name: trimmed, bundleId: id.isEmpty ? nil : id))
 +        persist()
 +    }
 +
++    // Repo iceriginden gizli isimlerin bundle id'lerini ogrenir. Boylece
++    // uygulama guncellemeyle adini degistirse bile gizli kalir. Eski surumden
++    // tasinan isim-only kayitlar ilk taramada tamamlanir.
++    func learnBundleIds(from apps: [Application]) {
++        let missingNames = Set(entries.filter { $0.bundleId == nil }.map { $0.name })
++        guard !missingNames.isEmpty else { return }
++
++        var changed = false
++        for name in missingNames {
++            for app in apps where app.name == name {
++                guard let id = app.bundleIdentifier, !id.isEmpty else { continue }
++                if entries.contains(where: { $0.name == name && $0.bundleId == id }) { continue }
++
++                if let index = entries.firstIndex(where: { $0.name == name && $0.bundleId == nil }) {
++                    entries[index] = HiddenAppEntry(name: name, bundleId: id)
++                } else {
++                    entries.append(HiddenAppEntry(name: name, bundleId: id))
++                }
++                changed = true
++            }
++        }
++
++        if changed {
++            persist()
++        }
++    }
++
++    // Bu isimdeki tum kayitlari (ve varsa bundle id kopyalarini) geri getirir.
 +    func unhide(name: String) {
-+        names.removeAll { $0 == name }
-+        persist()
++        let before = entries.count
++        entries.removeAll { $0.name == name }
++        if entries.count != before {
++            persist()
++        }
 +    }
 +
 +    func unhideAll() {
-+        guard !names.isEmpty else { return }
-+        names.removeAll()
++        guard !entries.isEmpty else { return }
++        entries.removeAll()
 +        persist()
 +    }
 +
 +    private func persist() {
-+        UserDefaults.standard.set(names, forKey: HiddenAppsManager.storageKey)
++        if let data = try? JSONEncoder().encode(entries) {
++            UserDefaults.standard.set(data, forKey: HiddenAppsManager.entriesKey)
++        }
++        // Eski anahtar da guncel tutulur (geriye uyumluluk).
++        UserDefaults.standard.set(names, forKey: HiddenAppsManager.legacyNamesKey)
 +    }
 +}
 +
@@ -457,7 +538,7 @@ index e7a5c20..e55e5bb 100644
                                                          .foregroundColor(.gray)
                                                  } else if queueManager.isProcessing {
 diff --git a/TrollApps/TrollApps/Managers/RepoManager.swift b/TrollApps/TrollApps/Managers/RepoManager.swift
-index e76b617..cda6b9a 100644
+index e76b617..221cd5c 100644
 --- a/TrollApps/TrollApps/Managers/RepoManager.swift
 +++ b/TrollApps/TrollApps/Managers/RepoManager.swift
 @@ -108,9 +108,11 @@ struct Application: Codable, Identifiable, Hashable {
@@ -487,12 +568,15 @@ index e76b617..cda6b9a 100644
      
      func fetchRepos() {
          self.hasFetchedRepos = true
-@@ -143,10 +152,124 @@ class RepositoryManager: ObservableObject {
+@@ -143,10 +152,127 @@ class RepositoryManager: ObservableObject {
              self.ReposData = fetchedResults
              self.BadRepos = errors
              
 +            // Yenilikler akisi: repoda ilk kez gorulen paketleri kaydet.
 +            NewAppsManager.shared.scan(fetchedResults)
++
++            // Gizli isimlerin bundle id'lerini ogren (ad degisikligine karsi).
++            HiddenAppsManager.shared.learnBundleIds(from: fetchedResults.flatMap { $0.data.apps })
 +            
 +            let bundleIDs = fetchedResults.flatMap { $0.data.apps }.compactMap { $0.bundleIdentifier }.filter { self.IsAppInstalled($0) }
 +            self.refreshStoreMinimumOS(for: bundleIDs)
@@ -934,7 +1018,7 @@ index 8ac616e..a5e5e62 100644
          }
          .navigationViewStyle(.stack)
 diff --git a/TrollApps/TrollApps/Views/BrowseView.swift b/TrollApps/TrollApps/Views/BrowseView.swift
-index 5a4ce1f..d2afddf 100644
+index 5a4ce1f..cf06acf 100644
 --- a/TrollApps/TrollApps/Views/BrowseView.swift
 +++ b/TrollApps/TrollApps/Views/BrowseView.swift
 @@ -11,12 +11,118 @@ struct AppListView: View {
@@ -1007,7 +1091,7 @@ index 5a4ce1f..d2afddf 100644
 +        .onChange(of: repoManager.storeMinimumOS) { _ in
 +            recomputeLists(apps)
 +        }
-+        .onChange(of: hiddenApps.names) { _ in
++        .onChange(of: hiddenApps.entries) { _ in
 +            recomputeLists(apps)
 +        }
 +    }
@@ -1016,10 +1100,10 @@ index 5a4ce1f..d2afddf 100644
 +    // degistikce ya da iOS/App Store siniri degistikce yenilenir.
 +    private func recomputeLists(_ allApps: [Application]) {
 +        updateApps = allApps
-+            .filter { !hiddenApps.isHidden($0.name) && isUpdateAvailable($0) }
++            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) && isUpdateAvailable($0) }
 +            .sorted { $0.name < $1.name }
 +        otherApps = allApps
-+            .filter { !hiddenApps.isHidden($0.name) && !isUpdateAvailable($0) }
++            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) && !isUpdateAvailable($0) }
 +            .sorted { $0.name < $1.name }
 +    }
 +
@@ -1139,7 +1223,7 @@ index 5a4ce1f..d2afddf 100644
 +    }
 +}
 diff --git a/TrollApps/TrollApps/Views/Cells/AppCell.swift b/TrollApps/TrollApps/Views/Cells/AppCell.swift
-index 9419ce7..f077719 100644
+index 9419ce7..e7482a7 100644
 --- a/TrollApps/TrollApps/Views/Cells/AppCell.swift
 +++ b/TrollApps/TrollApps/Views/Cells/AppCell.swift
 @@ -6,6 +6,7 @@
@@ -1212,10 +1296,10 @@ index 9419ce7..f077719 100644
 +            // Not: Button(role:) iOS 15+ oldugu icin (deployment target 14.0)
 +            // rol kullanilmiyor; menu ogesi sade Button olarak ekleniyor.
 +            Button(action: {
-+                // Isim bazli gizleme: ayni isme sahip tum uygulamalar birlikte
-+                // listeden kaldirilir. Kayitlar kullanicinin actigi gizli
-+                // listesinden tek tek geri alinabilir.
-+                HiddenAppsManager.shared.hide(name: app.name)
++                // Isim + bundle id bazli gizleme: guncelleme adi degistirse
++                // bile uygulama gizli kalir. Kayitlar kullanicinin actigi
++                // gizli listesinden geri alinabilir.
++                HiddenAppsManager.shared.hide(name: app.name, bundleId: app.bundleIdentifier)
 +            }) {
 +                Label("HIDE_APP", systemImage: "eye.slash")
 +            }
@@ -1244,20 +1328,50 @@ index 9e9d827..fff8c7d 100644
          {
              if(app.id != "com.opa334.TrollStore" && app.id != Bundle.main.bundleIdentifier) {
 diff --git a/TrollApps/TrollApps/Views/FeaturedView.swift b/TrollApps/TrollApps/Views/FeaturedView.swift
-index c45a8d7..a340cf5 100644
+index c45a8d7..48082c0 100644
 --- a/TrollApps/TrollApps/Views/FeaturedView.swift
 +++ b/TrollApps/TrollApps/Views/FeaturedView.swift
-@@ -19,7 +19,9 @@ struct FeaturedView: View {
+@@ -13,18 +13,21 @@ struct FeaturedView: View {
+     
+     @State private var repos: [RepoMemory] = []
+     @EnvironmentObject var repoManager: RepositoryManager
++    // Gizlenen uygulamalar O ne Cikanlar'da da gorunmesin.
++    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
+ 
+     var body: some View {
+         NavigationView {
              List {
                  ForEach(repos.sorted(by: { $0.data.name ?? "UNNAMED_REPO" < $1.data.name ?? "UNNAMED_REPO" })) { repo in
-                     if (repo.data.featuredApps ?? []).count > 0 {
+-                    if (repo.data.featuredApps ?? []).count > 0 {
 -                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")) {
+-                            ForEach(repo.data.featuredApps ?? [], id: \.self) { featuredAppId in
+-                                ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
+-                                    AppCell(app: app, showFullMode: false)
+-                                        .listRowInsets(EdgeInsets())
+-                                }
++                    let featured = visibleFeaturedApps(for: repo)
++                    if !featured.isEmpty {
 +                        Section(header: Text(repo.data.name ?? "UNNAMED_REPO")
 +                            .font(.subheadline.bold())
 +                            .foregroundColor(Color("AccentColor"))) {
-                             ForEach(repo.data.featuredApps ?? [], id: \.self) { featuredAppId in
-                                 ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
-                                     AppCell(app: app, showFullMode: false)
++                            ForEach(featured, id: \.self) { app in
++                                AppCell(app: app, showFullMode: false)
++                                    .listRowInsets(EdgeInsets())
+                             }
+                         }
+                     }
+@@ -48,4 +51,11 @@ struct FeaturedView: View {
+             repos = repoManager.ReposData
+         }
+     }
++
++    // O ne Cikanlar listesindeki uygulamalar; gizlenenler cikarilir.
++    private func visibleFeaturedApps(for repo: RepoMemory) -> [Application] {
++        (repo.data.featuredApps ?? [])
++            .flatMap { repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: $0) }
++            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) }
++    }
+ }
 diff --git a/TrollApps/TrollApps/Views/NavView.swift b/TrollApps/TrollApps/Views/NavView.swift
 index 88ad243..10d4f6b 100644
 --- a/TrollApps/TrollApps/Views/NavView.swift
@@ -1305,10 +1419,10 @@ index 88ad243..10d4f6b 100644
          .blur(radius: alertManager.isAlertPresented ? userSettings.blurStrength : 0.1
          )
 diff --git a/TrollApps/TrollApps/Views/NewsView.swift b/TrollApps/TrollApps/Views/NewsView.swift
-index 09f52b2..6ca76c1 100644
+index 09f52b2..4a09f19 100644
 --- a/TrollApps/TrollApps/Views/NewsView.swift
 +++ b/TrollApps/TrollApps/Views/NewsView.swift
-@@ -3,12 +3,246 @@
+@@ -3,12 +3,249 @@
  //  TrollApps
  //
  //  Created by Cleopatra on 2023-12-15.
@@ -1340,6 +1454,8 @@ index 09f52b2..6ca76c1 100644
 +    // Olay kaydi degisince akis aninda yenilensin.
 +    @ObservedObject private var news = NewAppsManager.shared
 +    @EnvironmentObject var repoManager: RepositoryManager
++    // Gizlenen uygulamalar Yenilikler akisinda da gorunmesin.
++    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
 +
 +    @State private var isRefreshing = false
 +
@@ -1471,7 +1587,8 @@ index 09f52b2..6ca76c1 100644
 +        var result: [NewsGroup] = []
 +        for (epoch, events) in byEpoch.sorted(by: { $0.key > $1.key }).prefix(20) {
 +            let items = events.compactMap { event -> NewsItem? in
-+                guard let app = appsById[event.bundleId] else { return nil }
++                guard let app = appsById[event.bundleId],
++                      !hiddenApps.isHidden(app.name, bundleId: app.bundleIdentifier) else { return nil }
 +                return NewsItem(app: app, event: event)
 +            }.sorted {
 +                $0.app.name.localizedCaseInsensitiveCompare($1.app.name) == .orderedAscending
@@ -1596,10 +1713,35 @@ index af671c8..c093a95 100644
  
                      Picker("APP_LANGUAGE", selection: $userSettings.lang) {
 diff --git a/TrollApps/TrollApps/Views/Subviews/SourceView.swift b/TrollApps/TrollApps/Views/Subviews/SourceView.swift
-index edb929b..c189b62 100644
+index edb929b..b33a426 100644
 --- a/TrollApps/TrollApps/Views/Subviews/SourceView.swift
 +++ b/TrollApps/TrollApps/Views/Subviews/SourceView.swift
-@@ -73,7 +73,7 @@ struct SearchBar: View {
+@@ -10,6 +10,8 @@ struct SourceView: View {
+     @State private var searchText = ""
+     @EnvironmentObject var repoManager: RepositoryManager
+     @StateObject private var alertManager = AlertManager()
++    // Gizlenen uygulamalar kaynak (depo) detayinda da gorunmesin.
++    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
+     
+     @State private var showFullVersion: Bool = false
+ 
+@@ -58,10 +60,13 @@ struct SourceView: View {
+     }
+     
+     var filteredApps: [Application] {
++        let visible = repo.apps.filter {
++            !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier)
++        }
+         if searchText.isEmpty {
+-            return repo.apps
++            return visible
+         } else {
+-            return repo.apps.filter { app in
++            return visible.filter { app in
+                 app.name.localizedCaseInsensitiveContains(searchText)
+             }
+         }
+@@ -73,7 +78,7 @@ struct SearchBar: View {
  
      var body: some View {
          ZStack {

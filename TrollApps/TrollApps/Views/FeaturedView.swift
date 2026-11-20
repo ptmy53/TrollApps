@@ -13,20 +13,21 @@ struct FeaturedView: View {
     
     @State private var repos: [RepoMemory] = []
     @EnvironmentObject var repoManager: RepositoryManager
+    // Gizlenen uygulamalar O ne Cikanlar'da da gorunmesin.
+    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
 
     var body: some View {
         NavigationView {
             List {
                 ForEach(repos.sorted(by: { $0.data.name ?? "UNNAMED_REPO" < $1.data.name ?? "UNNAMED_REPO" })) { repo in
-                    if (repo.data.featuredApps ?? []).count > 0 {
+                    let featured = visibleFeaturedApps(for: repo)
+                    if !featured.isEmpty {
                         Section(header: Text(repo.data.name ?? "UNNAMED_REPO")
                             .font(.subheadline.bold())
                             .foregroundColor(Color("AccentColor"))) {
-                            ForEach(repo.data.featuredApps ?? [], id: \.self) { featuredAppId in
-                                ForEach(repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: featuredAppId), id: \.self) { app in
-                                    AppCell(app: app, showFullMode: false)
-                                        .listRowInsets(EdgeInsets())
-                                }
+                            ForEach(featured, id: \.self) { app in
+                                AppCell(app: app, showFullMode: false)
+                                    .listRowInsets(EdgeInsets())
                             }
                         }
                     }
@@ -49,5 +50,12 @@ struct FeaturedView: View {
         .onChange(of: repoManager.hasFinishedFetchingRepos) { _ in
             repos = repoManager.ReposData
         }
+    }
+
+    // O ne Cikanlar listesindeki uygulamalar; gizlenenler cikarilir.
+    private func visibleFeaturedApps(for repo: RepoMemory) -> [Application] {
+        (repo.data.featuredApps ?? [])
+            .flatMap { repoManager.fetchAppsInRepo(repoInput: repo.data, bundleIdInput: $0) }
+            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) }
     }
 }

@@ -85,10 +85,10 @@ struct AppCell: View {
             // Not: Button(role:) iOS 15+ oldugu icin (deployment target 14.0)
             // rol kullanilmiyor; menu ogesi sade Button olarak ekleniyor.
             Button(action: {
-                // Isim bazli gizleme: ayni isme sahip tum uygulamalar birlikte
-                // listeden kaldirilir. Kayitlar kullanicinin actigi gizli
-                // listesinden tek tek geri alinabilir.
-                HiddenAppsManager.shared.hide(name: app.name)
+                // Isim + bundle id bazli gizleme: guncelleme adi degistirse
+                // bile uygulama gizli kalir. Kayitlar kullanicinin actigi
+                // gizli listesinden geri alinabilir.
+                HiddenAppsManager.shared.hide(name: app.name, bundleId: app.bundleIdentifier)
             }) {
                 Label("HIDE_APP", systemImage: "eye.slash")
             }

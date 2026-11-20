@@ -1,28 +1,31 @@
-# TrollApps 2.5
+# TrollApps 2.6
 
 ## English
 
-### What's new in 2.5
+### What's new in 2.6
 
-- **"What's New" is now an event log.** Every repo scan compares each app's
-  version with the previous scan. Apps whose version changed are recorded as
-  **updated**, apps seen for the first time are recorded as **new**.
-  Each event carries the time of the scan that found it.
-- **Grouped by scan time, newest first.** Open the app at 21:00 and updates
-  found at that scan appear as a `21:00` group. Open it again at 21:15: the
-  updates found then appear in a new `21:15` group at the top, while the
-  `21:00` group stays below it. You no longer get one flat list of everything.
-- **Pull down to rescan.** Pull the list down (or tap the refresh button) to
-  scan your repos again. If new updates are found, a new group stamped with
-  the current time appears at the top; if nothing changed, the list stays as
-  it is.
-- **Baseline on first run.** The very first scan only records the current
-  versions, so installing this update does not flood the tab with every app
-  in your repos.
-- Each row shows the version that the update brought, plus an `UPDATED` or
-  `NEW` badge. The list keeps the last 30 days of events (at most 20 groups).
-- All previously shipped features are included: permanent app hiding,
-  faster Browse list, modern card-based UI and the Featured-first tab order.
+- **Hidden apps stay hidden everywhere.** Previously the Hide option only
+  filtered the Browse list, so an app you hid could still show up on the
+  Featured page (the page the app opens on), inside a repo's app list and in
+  the What's New feed — especially after an update arrived. Hiding is now
+  applied to every app list:
+  - Featured (Öne Çıkanlar)
+  - Browse (both the Updates and All Apps sections, including search)
+  - Repo detail (source) lists
+  - What's New update groups
+- **Hiding is tied to the bundle ID as well as the name.** If a repo update
+  changes an app's display name, the app still stays hidden instead of
+  creeping back into the lists. Apps that share the same name are still
+  hidden together.
+- **Existing hidden list is preserved.** Entries from the previous version are
+  migrated automatically, and their bundle IDs are learned from your repos on
+  the next scan.
+- **Unhide only from the hidden list.** The eye-slash button in Browse still
+  opens Hidden apps; tapping an entry brings back every copy with that name.
+  Updates no longer make a hidden app reappear.
+- All 2.5 features are included: event-based What's New grouped by scan time,
+  pull-to-refresh rescan, foreground rescan, versioned releases and the modern
+  card UI.
 
 ### Install
 1. Download `TrollApps-updates.ipa` below.
@@ -31,28 +34,28 @@
 
 ## Türkçe
 
-### 2.5'te yenilikler
+### 2.6'da yenilikler
 
-- **"Yenilikler" artık bir olay kaydı.** Her repo taraması, her uygulamanın
-  sürümünü önceki taramayla karşılaştırır. Sürümü değişenler **güncellendi**,
-  ilk kez görülenler **yeni** olarak kaydedilir. Her olay, onu bulan taramanın
-  saatini taşır.
-- **Tarama saatine göre gruplar, en yenisi üstte.** Uygulamayı 21:00'de
-  açtığınızda o taramada bulunan güncellemeler `21:00` grubu olarak görünür.
-  21:15'te tekrar açtığınızda o an bulunanlar en üstte yeni bir `21:15` grubu
-  olarak çıkar, `21:00` grubu ise altında kalır. Artık her şey tek düz liste
-  halinde gösterilmez.
-- **Aşağı çekerek yeniden tarama.** Listeyi aşağı çekin (veya yenile
-  düğmesine dokunun); repolar yeniden taranır. Yeni güncelleme varsa o anki
-  saatle en üstte yeni bir grup çıkar, değişiklik yoksa liste olduğu gibi kalır.
-- **İlk açılışta baz kaydı.** İlk tarama yalnızca mevcut sürümleri kaydeder;
-  böylece bu güncellemeyi kurduğunuzda repolardaki tüm uygulamalar "yeni"
-  olarak listelenmez.
-- Her satırda güncellemenin getirdiği sürüm ile `GÜNCELLENDİ` veya `YENİ`
-  rozeti görünür. Liste son 30 günün olaylarını (en fazla 20 grup) saklar.
-- Önceki sürümlerdeki tüm özellikler dahil: kalıcı uygulama gizleme, daha
-  hızlı Gözat listesi, modern kart arayüzü ve Öne Çıkanlar'la açılan sekme
-  sırası.
+- **Gizlenen uygulamalar artık her yerde gizli kalıyor.** Önceden "Gizle"
+  yalnızca Gözat listesini filtreliyordu; gizlediğiniz uygulama Öne Çıkanlar
+  sayfasında (uygulamanın açıldığı sayfa), depo detay listesinde ve Yenilikler
+  akışında görünmeye devam edebiliyordu — özellikle bir güncelleme geldiğinde.
+  Gizleme artık tüm uygulama listelerine uygulanıyor:
+  - Öne Çıkanlar
+  - Gözat (Güncellemeler ve Tüm Uygulamalar bölümleri, arama dahil)
+  - Depo (kaynak) detay listeleri
+  - Yenilikler güncelleme grupları
+- **Gizleme, ismin yanında bundle ID ile de eşleşiyor.** Bir güncelleme
+  uygulamanın görünen adını değiştirse bile uygulama gizli kalır, listelere
+  geri dönmez. Aynı isme sahip uygulamalar yine birlikte gizlenir.
+- **Mevcut gizli listeniz korunuyor.** Önceki sürümdeki kayıtlar otomatik
+  taşınır; bundle ID'leri bir sonraki taramada repolarınızdan öğrenilir.
+- **Geri alma yalnızca gizli listesinden.** Gözat'taki göz-kapalı düğmesi
+  Gizlenen uygulamalar ekranını açar; bir kayda dokunmak o isimdeki tüm
+  kopyaları geri getirir. Güncellemeler artık gizli uygulamayı geri çıkarmaz.
+- 2.5'teki tüm özellikler dahil: tarama saatine göre gruplanan olay tabanlı
+  Yenilikler, aşağı çekerek yeniden tarama, ön plana dönüşte tarama sürüm
+  numaralı yayınlar ve modern kart arayüzü.
 
 ### Kurulum
 1. Aşağıdaki `TrollApps-updates.ipa` dosyasını indirin.

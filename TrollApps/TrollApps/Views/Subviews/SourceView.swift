@@ -10,6 +10,8 @@ struct SourceView: View {
     @State private var searchText = ""
     @EnvironmentObject var repoManager: RepositoryManager
     @StateObject private var alertManager = AlertManager()
+    // Gizlenen uygulamalar kaynak (depo) detayinda da gorunmesin.
+    @ObservedObject private var hiddenApps = HiddenAppsManager.shared
     
     @State private var showFullVersion: Bool = false
 
@@ -58,10 +60,13 @@ struct SourceView: View {
     }
     
     var filteredApps: [Application] {
+        let visible = repo.apps.filter {
+            !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier)
+        }
         if searchText.isEmpty {
-            return repo.apps
+            return visible
         } else {
-            return repo.apps.filter { app in
+            return visible.filter { app in
                 app.name.localizedCaseInsensitiveContains(searchText)
             }
         }

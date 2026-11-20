@@ -74,7 +74,7 @@ struct AppListView: View {
         .onChange(of: repoManager.storeMinimumOS) { _ in
             recomputeLists(apps)
         }
-        .onChange(of: hiddenApps.names) { _ in
+        .onChange(of: hiddenApps.entries) { _ in
             recomputeLists(apps)
         }
     }
@@ -83,10 +83,10 @@ struct AppListView: View {
     // degistikce ya da iOS/App Store siniri degistikce yenilenir.
     private func recomputeLists(_ allApps: [Application]) {
         updateApps = allApps
-            .filter { !hiddenApps.isHidden($0.name) && isUpdateAvailable($0) }
+            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) && isUpdateAvailable($0) }
             .sorted { $0.name < $1.name }
         otherApps = allApps
-            .filter { !hiddenApps.isHidden($0.name) && !isUpdateAvailable($0) }
+            .filter { !hiddenApps.isHidden($0.name, bundleId: $0.bundleIdentifier) && !isUpdateAvailable($0) }
             .sorted { $0.name < $1.name }
     }
 
